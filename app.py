@@ -73,7 +73,6 @@ def get_special_k(graph, colors):
 
         return None
 
-
     coloring = {}   # Dictionary with a colour keyed by each node
     coloring = get_special_k_recur(graph, list(graph.nodes)[0], colors, coloring)
 
@@ -85,7 +84,7 @@ def get_special_k(graph, colors):
     color_map = []
     for node in graph.nodes:
         color_map.append(coloring[node])
-        return color_map
+    return color_map
 
 
 # Checks if coloring is isomorphism, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
@@ -137,13 +136,13 @@ def coloring_is_isomorphism(coloring1:list, coloring2:list):
 graph_arr = import_graphs()
 color_set = ["blue", "red", "green", "yellow"]
 
-# for i in range(len(graph_arr)):
-#     print(f"{i+1}/{len(graph_arr)}")
-#     sys.stdout.flush()
-#     if get_special_k(graph_arr[i], color_set) is None:
-#         print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
-#         nx.draw(graph_arr[i])
-#         plt.show()
+for i in range(len(graph_arr)):
+    print(f"{i+1}/{len(graph_arr)}")
+    sys.stdout.flush()
+    if get_special_k(graph_arr[i], color_set) is None:
+        print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
+        nx.draw(graph_arr[i])
+        plt.show()
 
 
 sel = 300
