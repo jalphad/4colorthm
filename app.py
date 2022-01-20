@@ -1,6 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
+import sys
 
 
 def import_graphs():
@@ -93,7 +94,15 @@ def get_special_k_recur(graph, node, colors: list, coloring: dict):
 
 
 colors = ["blue", "red", "green", "yellow"]
+for i in range(len(graph_arr)):
+    print(f"{i+1}/{len(graph_arr)}")
+    sys.stdout.flush()
+    if get_special_k(graph_arr[i], colors) is None:
+        print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
+        nx.draw(graph_arr[i])
+        plt.show()
 
 
-nx.draw(graph_arr[0], node_color=get_special_k(graph_arr[0], colors))
+sel = 300
+nx.draw(graph_arr[sel], node_color=get_special_k(graph_arr[sel], colors), with_labels=list(graph_arr[sel].nodes))
 plt.show()
