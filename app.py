@@ -9,11 +9,11 @@ def import_graphs():
         VERTEX = 2
         EDGE = 3
 
-with open("U_2822.conf", 'r') as f:
-  data = f.readlines()
+    with open("U_2822.conf", 'r') as f:
+        data = f.readlines()
 
-graphs = []
-state = State.NEW
+    graphs = []
+    state = State.NEW
 
     for line in data:
         line = line.strip()
@@ -57,10 +57,10 @@ def get_special_k(graph, colors):
         new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring)
         #Turn it into list for NX.draw
         if new_coloring is not None:
-            colorMap = []
+            color_map = []
             for node in graph.nodes:
-                colorMap.append(new_coloring[node])
-            return colorMap
+                color_map.append(new_coloring[node])
+            return color_map
     return None
 
 
@@ -95,5 +95,5 @@ def get_special_k_recur(graph, node, colors: list, coloring: dict):
 colors = ["blue", "red", "green", "yellow"]
 
 
-networkx.draw(graphs[0])
+nx.draw(graph_arr[0], node_color=get_special_k(graph_arr[0], colors))
 plt.show()
