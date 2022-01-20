@@ -45,56 +45,50 @@ def import_graphs():
     return graphs
 
 
-graph_arr = import_graphs()
-
-
 def get_special_k(graph, colors):
-    coloring = {}
-    cur_node = list(graph.nodes)[0]
-    coloring[cur_node] = colors[0]
+    def get_special_k_recur(graph, node, colors: list, coloring: dict):
+        # If already colored, return current (successful) coloring
+        if node in coloring.keys():
+            return coloring
 
-    for neighneigh in graph.neighbors(cur_node):
-        new_coloring = coloring.copy()
-        new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring)
-        #Turn it into list for NX.draw
-        if new_coloring is not None:
-            color_map = []
-            for node in graph.nodes:
-                color_map.append(new_coloring[node])
-            return color_map
-    return None
+        neighbours = list(graph.neighbors(node))
+        avail = colors.copy()
 
-
-def get_special_k_recur(graph, node, colors: list, coloring: dict):
-    # If already colored, return current (successful) coloring
-    if node in coloring.keys():
-        return coloring
-
-    neighbours = list(graph.neighbors(node))
-    avail = colors.copy()
-
-    # Remove colors already taken by neighbours
-    for neighneigh in neighbours:
-        if neighneigh in coloring.keys():
-            if coloring[neighneigh] in avail:
-                avail.remove(coloring[neighneigh])
-
-    for node_color in avail:
-        new_coloring = coloring.copy()
-        new_coloring[node] = node_color
+        # Remove colors already taken by neighbours
         for neighneigh in neighbours:
-            # Colour the other neighbours
-            new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring)
-            if new_coloring is None:
-                break
-        if new_coloring is not None:
-            return new_coloring
+            if neighneigh in coloring.keys():
+                if coloring[neighneigh] in avail:
+                    avail.remove(coloring[neighneigh])
 
-    return None
+        for node_color in avail:
+            new_coloring = coloring.copy()
+            new_coloring[node] = node_color
+            for neighneigh in neighbours:
+                # Colour the other neighbours
+                new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring)
+                if new_coloring is None:
+                    break
+            if new_coloring is not None:
+                return new_coloring
+
+        return None
+
+
+    coloring = {}   # Dictionary with a colour keyed by each node
+    coloring = get_special_k_recur(graph, list(graph.nodes)[0], colors, coloring)
+
+    # Check if it was successful
+    if coloring is None:
+        return None
+
+    # Turn it into list for NX.draw
+    color_map = []
+    for node in graph.nodes:
+        color_map.append(coloring[node])
+        return color_map
 
 
 # Checks if coloring is isomorphism, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
-
 def coloring_is_isomorphism(coloring1:list, coloring2:list):
     # Check same length
     if len(coloring1) != len(coloring2):
@@ -134,22 +128,24 @@ def coloring_is_isomorphism(coloring1:list, coloring2:list):
                     return False
             else:
                 return False
+        # If they do match up fixate the color so it cant be switched
         elif coloring2 in avail_colors:
             avail_colors.remove(coloring2[clr_i])
     return True
 
 
+graph_arr = import_graphs()
+color_set = ["blue", "red", "green", "yellow"]
 
-colors = ["blue", "red", "green", "yellow"]
-for i in range(len(graph_arr)):
-    print(f"{i+1}/{len(graph_arr)}")
-    sys.stdout.flush()
-    if get_special_k(graph_arr[i], colors) is None:
-        print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
-        nx.draw(graph_arr[i])
-        plt.show()
+# for i in range(len(graph_arr)):
+#     print(f"{i+1}/{len(graph_arr)}")
+#     sys.stdout.flush()
+#     if get_special_k(graph_arr[i], color_set) is None:
+#         print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
+#         nx.draw(graph_arr[i])
+#         plt.show()
 
 
 sel = 300
-nx.draw(graph_arr[sel], node_color=get_special_k(graph_arr[sel], colors), with_labels=list(graph_arr[sel].nodes))
+nx.draw(graph_arr[sel], node_color=get_special_k(graph_arr[sel], color_set), with_labels=list(graph_arr[sel].nodes))
 plt.show()
