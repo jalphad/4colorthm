@@ -93,6 +93,53 @@ def get_special_k_recur(graph, node, colors: list, coloring: dict):
     return None
 
 
+# Checks if coloring is isomorphism, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
+
+def coloring_is_isomorphism(coloring1:list, coloring2:list):
+    # Check same length
+    if len(coloring1) != len(coloring2):
+        return False
+
+    # Check same amount of colours
+    if len(set(coloring1)) != len(set(coloring2)):
+        return False
+
+    # Map different colour domains into number identifiers
+    d = {ni: indi for indi, ni in enumerate(set(coloring1))}
+    coloring1 = map(d.get, coloring1)
+    coloring2 = map(d.get, coloring2)
+
+    # Map that switches two colours
+    def switcher_hitcher(c, color1, color2):
+        if c == color1:
+            return color2
+        elif c == color2:
+            return color1
+        else:
+            return c
+
+    avail_colors = set(coloring1)
+
+    # Try to switch colours of 2 so that coloring 2 becomes equal to 1
+    for clr_i in range(coloring1):
+        # If they do not match up, we have to permutatenate coloring 2
+        if coloring1[clr_i] != coloring2[clr_i]:
+            # Check if the to be replaced color has already been fixed to the permutation of coloring 1 before
+            if coloring2[clr_i] in avail_colors:
+                # Check if the replacement is already fixed to the specific permutation of coloring 1
+                if coloring1[clr_i] in avail_colors:
+                    avail_colors.remove(coloring1[clr_i])
+                    coloring2 = map(switcher_hitcher, coloring2, coloring1[clr_i], coloring2[clr_i])
+                else:
+                    return False
+            else:
+                return False
+        elif coloring2 in avail_colors:
+            avail_colors.remove(coloring2[clr_i])
+    return True
+
+
+
 colors = ["blue", "red", "green", "yellow"]
 for i in range(len(graph_arr)):
     print(f"{i+1}/{len(graph_arr)}")
