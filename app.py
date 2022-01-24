@@ -2,6 +2,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
 import sys
+from joblib import Parallel, delayed
 
 
 def import_graphs():
@@ -89,7 +90,7 @@ def get_special_k(graph, colors):
 
 def ggd_test_service(graph, colouring):
     for e in graph.edges:
-        if colouring[e[0]-1] == colouring[e[1]-1]:  # Node numbers start with 1, indexing starts with 0
+        if colouring[e[0] - 1] == colouring[e[1] - 1]:  # Node numbers start with 1, indexing starts with 0
             return False
     return True
 
@@ -143,16 +144,22 @@ def coloring_is_isomorphism(coloring1: list, coloring2: list):
 graph_arr = import_graphs()
 color_set = ["blue", "red", "green", "yellow"]
 
-for i in range(len(graph_arr)):
-    print(f"{i + 1}/{len(graph_arr)}")
-    sys.stdout.flush()
-    k = get_special_k(graph_arr[i], color_set)
-    if k is None or not ggd_test_service(graph_arr[i], k):
+
+def special_k_to_the_ggd(g, i: int):
+    print(f"{i + 1}/2822")  # Hardcoded for parallelness
+    # sys.stdout.flush()
+    k = get_special_k(g, color_set)
+    if k is None or not ggd_test_service(g, k):
         print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
-        nx.draw(graph_arr[i])
+        nx.draw(g)
         plt.title(f"i={i}")
         plt.show()
 
-sel = 300
+
+Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))
+
+# for i in range(len(graph_arr)): deal_and_check(i)
+
+sel = 1900
 nx.draw(graph_arr[sel], node_color=get_special_k(graph_arr[sel], color_set), with_labels=list(graph_arr[sel].nodes))
 plt.show()
