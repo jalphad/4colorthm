@@ -11,6 +11,7 @@ def import_graphs():
         VERTEX = 2
         EDGE = 3
 
+    # with open("vier-kleuren.txt", 'r') as f: # For the specific example
     with open("U_2822.conf", 'r') as f:
         data = f.readlines()
 
@@ -166,6 +167,6 @@ Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range
 
 # for i in range(len(graph_arr)): deal_and_check(i)
 
-sel = 1900
-nx.draw(graph_arr[sel], node_color=get_special_k(graph_arr[sel], color_set), with_labels=list(graph_arr[sel].nodes))
+sel = 2000
+nx.draw_planar(graph_arr[sel], node_color=get_special_k(graph_arr[sel], color_set), with_labels=list(graph_arr[sel].nodes))
 plt.show()
