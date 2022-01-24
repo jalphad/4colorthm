@@ -52,7 +52,13 @@ def get_special_k(graph, colors):
         if node in coloring.keys():
             return coloring
 
-        neighbours = list(graph.neighbors(node))
+        use_sort = True
+        if not use_sort:
+            neighbours = list(graph.neighbors(node))
+        else:
+            neighbours_unsort = list(graph.neighbors(node))
+            neighbour_deg = list(graph.degree)
+            neighbours = [i for _, i in sorted(zip(neighbour_deg, neighbours_unsort), reverse=True)]
         avail = colors.copy()
 
         # Remove colors already taken by neighbours
