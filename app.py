@@ -157,8 +157,9 @@ def coloring_is_isomorphism(coloring1: list, coloring2: list):
 
     # Map different colour domains into number identifiers
     d = {ni: indi for indi, ni in enumerate(set(coloring1))}
-    coloring1 = map(d.get, coloring1)
-    coloring2 = map(d.get, coloring2)
+    coloring1 = list(map(lambda i: d[i], coloring1))
+    d = {ni: indi for indi, ni in enumerate(set(coloring2))}
+    coloring2 = list(map(lambda i: d[i], coloring2))
 
     # Map that switches two colours
     def switcher_hitcher(c, color1, color2):
@@ -172,7 +173,7 @@ def coloring_is_isomorphism(coloring1: list, coloring2: list):
     avail_colors = set(coloring1)
 
     # Try to switch colours of 2 so that coloring 2 becomes equal to 1
-    for clr_i in range(coloring1):
+    for clr_i in range(len(coloring1)):
         # If they do not match up, we have to permutatenate coloring 2
         if coloring1[clr_i] != coloring2[clr_i]:
             # Check if the to be replaced color has already been fixed to the permutation of coloring 1 before
@@ -180,13 +181,13 @@ def coloring_is_isomorphism(coloring1: list, coloring2: list):
                 # Check if the replacement is already fixed to the specific permutation of coloring 1
                 if coloring1[clr_i] in avail_colors:
                     avail_colors.remove(coloring1[clr_i])
-                    coloring2 = map(switcher_hitcher, coloring2, coloring1[clr_i], coloring2[clr_i])
+                    coloring2 = list(map(switcher_hitcher, coloring2, coloring1[clr_i], coloring2[clr_i]))
                 else:
                     return False
             else:
                 return False
         # If they do match up fixate the color so it cant be switched
-        elif coloring2 in avail_colors:
+        elif coloring2[clr_i] in avail_colors:
             avail_colors.remove(coloring2[clr_i])
     return True
 
@@ -212,4 +213,11 @@ plt.figure()
 nx.draw_planar(graph_arr[sel],
                node_color=get_special_k(graph_arr[sel], color_set)[0],
                with_labels=list(graph_arr[sel].nodes))
+
+
+print(coloring_is_isomorphism(
+    get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[0],
+    get_special_k(graph_arr[sel], {1, 2, 3, 4})[0]
+))
+
 plt.show()
