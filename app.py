@@ -1,8 +1,20 @@
+import networkx
 import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
 import sys
 from joblib import Parallel, delayed
+
+
+class Config:
+    identifier = None
+    graph = None
+    size = None
+    ring_size = None
+    no_of_colorings = None
+    ring = None
+    inside = None
+    pass
 
 
 def import_graphs():
@@ -16,38 +28,58 @@ def import_graphs():
         data = f.readlines()
 
     graphs = []
+    configs = []
+
     state = State.NEW
 
     for line in data:
         line = line.strip()
         if state is State.EDGE and line == '':
+            cur_config.inside = cur_graph.subgraph(
+                filter(lambda v: v > cur_config.ring_size, cur_graph.nodes)
+            )
+            cur_config.ring = cur_graph.subgraph(
+                filter(lambda v: v <= cur_config.ring_size, cur_graph.nodes)
+            )
+
             state = State.NEW
-            graph = None
+            cur_graph = None
             nr_of_vertices = -1
         elif state is State.NEW:
-            graph = nx.Graph()
-            graphs.append(graph)
+            cur_graph = nx.Graph()
+            graphs.append(cur_graph)
+
+            cur_config = Config()
+            cur_config.identifier = int(line.split()[0])
+            configs.append(cur_config)
+
             state = State.VERTEX
         elif state is State.VERTEX:
-            config = line.split()
-            nr_of_vertices = int(config[0])
-            graph.add_nodes_from(range(1, nr_of_vertices + 1))
+            config_data = line.split()
+            nr_of_vertices = int(config_data[0])
+            cur_graph.add_nodes_from(range(1, nr_of_vertices + 1))
+
+            cur_config.graph = cur_graph
+            cur_config.size = int(config_data[0])
+            cur_config.ring_size = int(config_data[1])
+            cur_config.no_of_colorings = int(config_data[2])
+
             state = State.EDGE
         elif state is State.EDGE:
-            config = line.split()
+            config_data = line.split()
             if line == '0':
                 pass
-            elif int(config[0]) <= nr_of_vertices:
-                vertex = int(config[0])
-                for i in range(2, 2 + int(config[1])):
-                    graph.add_edge(vertex, int(config[i]))
+            elif int(config_data[0]) <= nr_of_vertices:
+                vertex = int(config_data[0])
+                for i in range(2, 2 + int(config_data[1])):
+                    cur_graph.add_edge(vertex, int(config_data[i]))
             else:
                 pass
 
-    return graphs
+    return graphs, configs
 
 
-def get_special_k(graph, colors):
+def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
     def get_special_k_recur(graph, node, colors: list, coloring: dict):
         # If already colored, return current (successful) coloring
         if node in coloring.keys():
@@ -81,25 +113,36 @@ def get_special_k(graph, colors):
 
         return None
 
-    coloring = {}  # Dictionary with a colour keyed by each node
-    coloring = get_special_k_recur(graph, list(graph.nodes)[0], colors, coloring)
+    # color_dic: Dictionary with a colour keyed by each node
+    color_dic = get_special_k_recur(graph, list(graph.nodes)[start_index], colors, color_dic)
 
     # Check if it was successful
-    if coloring is None:
+    if color_dic is None:
         return None
 
     # Turn it into list for NX.draw
-    color_map = []
+    color_list = []
     for node in graph.nodes:
-        color_map.append(coloring[node])
-    return color_map
+        color_list.append(color_dic[node])
+    return color_list, color_dic # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 
-def ggd_test_service(graph, colouring):
+def ggd_test_service(graph, color_list):
     for e in graph.edges:
-        if colouring[e[0] - 1] == colouring[e[1] - 1]:  # Node numbers start with 1, indexing starts with 0
+        if color_list[e[0] - 1] == color_list[e[1] - 1]:  # Node numbers start with 1, indexing starts with 0
             return False
     return True
+
+
+def special_k_to_the_ggd(g, i: int):
+    print(f"{i + 1}/2822")  # Hardcoded for parallelness
+    # sys.stdout.flush()
+    k, k_vertex = get_special_k(g, color_set)
+    if k is None or not ggd_test_service(g, k):
+        print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
+        nx.draw(g)
+        plt.title(f"i={i}")
+        plt.show()
 
 
 # Checks if coloring is isomorphism, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
@@ -148,19 +191,9 @@ def coloring_is_isomorphism(coloring1: list, coloring2: list):
     return True
 
 
-graph_arr = import_graphs()
-color_set = ["blue", "red", "green", "yellow"]
+graph_arr, config_arr = import_graphs()
+color_set = {"blue", "red", "green", "yellow"}
 
-
-def special_k_to_the_ggd(g, i: int):
-    print(f"{i + 1}/2822")  # Hardcoded for parallelness
-    # sys.stdout.flush()
-    k = get_special_k(g, color_set)
-    if k is None or not ggd_test_service(g, k):
-        print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
-        nx.draw(g)
-        plt.title(f"i={i}")
-        plt.show()
 
 
 Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))
@@ -168,5 +201,15 @@ Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range
 # for i in range(len(graph_arr)): deal_and_check(i)
 
 sel = 2000
-nx.draw_planar(graph_arr[sel], node_color=get_special_k(graph_arr[sel], color_set), with_labels=list(graph_arr[sel].nodes))
+
+nx.draw(config_arr[sel].graph)
+plt.figure()
+nx.draw(config_arr[sel].inside)
+plt.figure()
+nx.draw(config_arr[sel].ring)
+plt.figure()
+
+nx.draw_planar(graph_arr[sel],
+               node_color=get_special_k(graph_arr[sel], color_set)[0],
+               with_labels=list(graph_arr[sel].nodes))
 plt.show()
