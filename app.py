@@ -14,7 +14,6 @@ class Config:
     no_of_colorings = None
     ring = None
     inside = None
-    pass
 
 
 def import_graphs():
@@ -136,6 +135,7 @@ def ggd_test_service(graph, color_list):
 
 def special_k_to_the_ggd(g, i: int):
     print(f"{i + 1}/2822")  # Hardcoded for parallelness
+    print(f"ring_size:{config_arr[i].ring_size}")
     # sys.stdout.flush()
     k, k_vertex = get_special_k(g, color_set)
     if k is None or not ggd_test_service(g, k):
@@ -192,32 +192,83 @@ def coloring_is_isomorphism(coloring1: list, coloring2: list):
     return True
 
 
-graph_arr, config_arr = import_graphs()
+def complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
+    def complete_menu_recur(graph, node, colors: list, coloring: dict):
+        # If already colored, return current (successful) coloring
+        if node in coloring.keys():
+            return coloring
+
+        use_sort = True
+        if not use_sort:
+            neighbours = list(graph.neighbors(node))
+        else:
+            neighbours_unsort = list(graph.neighbors(node))
+            neighbour_deg = list(graph.degree)
+            neighbours = [i for _, i in sorted(zip(neighbour_deg, neighbours_unsort), reverse=True)]
+        avail = colors.copy()
+
+        # Remove colors already taken by neighbours
+        for neighneigh in neighbours:
+            if neighneigh in coloring.keys():
+                if coloring[neighneigh] in avail:
+                    avail.remove(coloring[neighneigh])
+
+        coloring_options = []
+        for node_color in avail:
+            new_coloring = coloring.copy()
+            new_coloring[node] = node_color
+            for neighneigh in neighbours:
+                # Colour the other neighbours
+                new_colorings = complete_menu_recur(graph, neighneigh, colors, new_coloring)
+                new_colorings = list(filter(lambda x: x is not None, new_coloring))
+
+                if not new_colorings:
+                    break
+            if new_colorings is not None:
+                coloring_options += new_colorings
+
+        if not coloring_options:
+            return None
+        else:
+            return coloring_options
+
+    # color_dic: Dictionary with a colour keyed by each node
+    color_dic = complete_menu_recur(graph, list(graph.nodes)[start_index], colors, color_dic)
+
+    # Check if it was successful
+    if color_dic is None:
+        return None
+
+    # Turn it into list for NX.draw
+    color_list = []
+    for node in graph.nodes:
+        color_list.append(color_dic[node])
+    return color_list, color_dic # color_list of the colors corresponding to vertices by order, coloring is dictionary
+
+# Doing the stuffs
+########################################################################################################################
+
+graph_arr, config_arr = import_graphs()     # Get configs from file
 color_set = {"blue", "red", "green", "yellow"}
+#Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))   # Color all configs
+for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
 
+sel = 2000      # Arbitrary selection of a config
 
-
-Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))
-
-# for i in range(len(graph_arr)): deal_and_check(i)
-
-sel = 2000
-
-nx.draw(config_arr[sel].graph)
-plt.figure()
+# Draw defined subgraphs
 nx.draw(config_arr[sel].inside)
 plt.figure()
 nx.draw(config_arr[sel].ring)
 plt.figure()
-
+# Draw entire graph with 4 koloring
 nx.draw_planar(graph_arr[sel],
                node_color=get_special_k(graph_arr[sel], color_set)[0],
                with_labels=list(graph_arr[sel].nodes))
+plt.show()
 
-
+# Does isomorphism do the isomorphism?????
 print(coloring_is_isomorphism(
     get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[0],
     get_special_k(graph_arr[sel], {1, 2, 3, 4})[0]
 ))
 
-plt.show()
