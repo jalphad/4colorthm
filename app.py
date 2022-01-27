@@ -192,8 +192,8 @@ def coloring_is_isomorphism(coloring1: list, coloring2: list):
     return True
 
 
-def complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
-    def complete_menu_recur(graph, node, colors: list, coloring: dict):
+def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
+    def get_complete_menu_recur(graph, node, colors: list, coloring: dict):
         # If already colored, return current (successful) coloring
         if node in coloring.keys():
             return coloring
@@ -219,13 +219,13 @@ def complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
             new_coloring[node] = node_color
             for neighneigh in neighbours:
                 # Colour the other neighbours
-                new_colorings = complete_menu_recur(graph, neighneigh, colors, new_coloring)
-                new_colorings = list(filter(lambda x: x is not None, new_coloring))
+                new_coloring = get_complete_menu_recur(graph, neighneigh, colors, new_coloring)
+                new_coloring = list(filter(lambda x: x is not None, new_coloring))
 
-                if not new_colorings:
+                if not new_coloring:
                     break
-            if new_colorings is not None:
-                coloring_options += new_colorings
+            if new_coloring:
+                coloring_options += new_coloring
 
         if not coloring_options:
             return None
@@ -233,17 +233,20 @@ def complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
             return coloring_options
 
     # color_dic: Dictionary with a colour keyed by each node
-    color_dic = complete_menu_recur(graph, list(graph.nodes)[start_index], colors, color_dic)
+    color_dic_list = get_complete_menu_recur(graph, list(graph.nodes)[start_index], colors, color_dic)
 
     # Check if it was successful
-    if color_dic is None:
+    if not color_dic_list:
         return None
 
     # Turn it into list for NX.draw
-    color_list = []
-    for node in graph.nodes:
-        color_list.append(color_dic[node])
-    return color_list, color_dic # color_list of the colors corresponding to vertices by order, coloring is dictionary
+    color_list_list = []
+    for k in color_dic_list:
+        cur_K_color_list = []
+        color_list_list.append(cur_K_color_list)
+        for node in graph.nodes:
+            cur_K_color_list.append(color_dic[node])
+    return color_list_list, color_dic_list # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 # Doing the stuffs
 ########################################################################################################################
