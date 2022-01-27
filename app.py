@@ -213,18 +213,25 @@ def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
                 if coloring[neighneigh] in avail:
                     avail.remove(coloring[neighneigh])
 
+        new_neighbours = list(filter(lambda n: n not in coloring.keys(), neighbours))
+
         coloring_options = []
         for node_color in avail:
             new_coloring = coloring.copy()
             new_coloring[node] = node_color
-            for neighneigh in neighbours:
-                # Colour the other neighbours
-                new_coloring = get_complete_menu_recur(graph, neighneigh, colors, new_coloring)
-                new_coloring = list(filter(lambda x: x is not None, new_coloring))
+            new_colorings = [new_coloring]
 
-                if not new_coloring:
-                    break
-            if new_coloring:
+            for neighneigh in new_neighbours:
+                options_for_next = []
+                for option in new_colorings:
+                    # Colour the other neighbours
+                    new_options = get_complete_menu_recur(graph, neighneigh, colors, option)
+                    new_options = list(filter(lambda x: x is not None, new_options))
+
+                    options_for_next += new_options
+                new_colorings = options_for_next
+
+            if new_colorings:
                 coloring_options += new_coloring
 
         if not coloring_options:
@@ -264,7 +271,7 @@ plt.figure()
 nx.draw(config_arr[sel].ring)
 plt.figure()
 # Draw entire graph with 4 koloring
-nx.draw_planar(graph_arr[sel],
+nx.draw(graph_arr[sel],
                node_color=get_special_k(graph_arr[sel], color_set)[0],
                with_labels=list(graph_arr[sel].nodes))
 plt.show()
@@ -275,3 +282,5 @@ print(coloring_is_isomorphism(
     get_special_k(graph_arr[sel], {1, 2, 3, 4})[0]
 ))
 
+
+print(get_complete_menu(graph_arr[sel], color_set)[0])
