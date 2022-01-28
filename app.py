@@ -1,4 +1,4 @@
-import networkx
+from tabnanny import check
 import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
@@ -77,6 +77,30 @@ def import_graphs():
 
     return graphs, configs
 
+def verify_all_ring_colorings(config, colors):
+    def recurse(config, node: int, colors: list, coloring: dict):
+        if node > config.ring_size:
+            # return check_reducible(config.graph, node, colors, coloring)
+            return True
+        graph = config.ring
+        colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
+        colors_available = list(filter(lambda c: c not in colors_in_use, colors))
+        while len(colors_available) > 0:
+            if len(coloring) > node:
+                coloring.popitem()
+            coloring[node] = colors_available[0]
+            colors_available = colors_available[1::]
+            is_reducible = recurse(config, node+1, colors, coloring)
+
+    coloring = {1: colors[0]}
+    is_reducible = recurse(config, 2, colors, coloring)
+
+
+def check_reducible(graph, node: int, colors: list, coloring: dict):
+    k, _ = get_special_k(graph, colors, coloring, node)
+    if k is None or not ggd_test_service(g, k):
+        return False
+    return True
 
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
     def get_special_k_recur(graph, node, colors: list, coloring: dict):
@@ -137,7 +161,7 @@ def special_k_to_the_ggd(g, i: int):
     print(f"{i + 1}/2822")  # Hardcoded for parallelness
     print(f"ring_size:{config_arr[i].ring_size}")
     # sys.stdout.flush()
-    k, k_vertex = get_special_k(g, color_set)
+    k, _ = get_special_k(g, colors)
     if k is None or not ggd_test_service(g, k):
         print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
         nx.draw(g)
@@ -259,11 +283,17 @@ def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
 ########################################################################################################################
 
 graph_arr, config_arr = import_graphs()     # Get configs from file
-color_set = {"blue", "red", "green", "yellow"}
+colors = ["blue", "red", "green", "yellow"]
+colorings = []
+verify_all_ring_colorings(config_arr[0], colors)
+# for i in range(len(config_arr)): verify_all_ring_colorings(config_arr[i], colors)
 #Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))   # Color all configs
-for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
+# for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
 
-sel = 2000      # Arbitrary selection of a config
+### Small subset for testing purposes
+# for i in range(10): special_k_to_the_ggd(graph_arr[i], i)
+
+sel = 0      # Arbitrary selection of a config
 
 # Draw defined subgraphs
 nx.draw(config_arr[sel].inside)
@@ -272,15 +302,15 @@ nx.draw(config_arr[sel].ring)
 plt.figure()
 # Draw entire graph with 4 koloring
 nx.draw(graph_arr[sel],
-               node_color=get_special_k(graph_arr[sel], color_set)[0],
+               node_color=get_special_k(graph_arr[sel], colors)[0],
                with_labels=list(graph_arr[sel].nodes))
 plt.show()
 
-# Does isomorphism do the isomorphism?????
-print(coloring_is_isomorphism(
-    get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[0],
-    get_special_k(graph_arr[sel], {1, 2, 3, 4})[0]
-))
+# # Does isomorphism do the isomorphism?????
+# print(coloring_is_isomorphism(
+#     get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[0],
+#     get_special_k(graph_arr[sel], {1, 2, 3, 4})[0]
+# ))
 
 
-print(get_complete_menu(graph_arr[sel], color_set)[0])
+# print(get_complete_menu(graph_arr[sel], colors)[0])
