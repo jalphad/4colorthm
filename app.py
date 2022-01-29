@@ -1,9 +1,20 @@
-from tabnanny import check
+from dataclasses import is_dataclass
+import re
+from unittest import case
 import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
+from copy import deepcopy
 import sys
 from joblib import Parallel, delayed
+
+# Global constants
+COLORS = ("blue", "red", "green", "yellow")
+COLOR_PAIRINGS = (
+    (("blue", "red"), ("green", "yellow")),
+    (("blue", "green"), ("red", "yellow")),
+    (("blue", "yellow"), ("red", "green"))
+)
 
 
 class Config:
@@ -14,6 +25,127 @@ class Config:
     no_of_colorings = None
     ring = None
     inside = None
+
+
+class Grouping:
+
+    class Group:
+        def __init__(self, id: int, grouping_size: int) -> None:
+            self.id = id
+            self.sectors = []
+            self.connection_count = {}
+            for i in range(grouping_size):
+                if i != self.id:
+                    self.connection_count[i] = 0
+
+
+        def add(self, sector: int):
+            self.sectors.append(sector)
+
+
+        def update_count(self, group: int, action: str):
+            if action == "add":
+                self.connection_count[group] += 1
+            elif action == "remove":
+                self.connection_count[group] -= 1
+            else:
+                raise Exception("No valid action")
+
+
+    def __init__(self, kempe_sectors: list, coloring: dict, color_pairing: tuple, size: int) -> None:
+        self.size = size
+        self.sectors = kempe_sectors
+        self.coloring = coloring
+        self.color_pairing = color_pairing
+        self.groups = []
+        for i in range(size):
+            self.groups.append(self.Group(i, size))
+        self.sectors_to_group = {}
+        self.add_sector_to_group(0,0)
+
+
+    def get_neighboring_groups(self, sector: int):
+        neighbors = []
+        if (sector-1)%len(self.sectors) in self.sectors_to_group.keys():
+            neighbors.append(self.sectors_to_group.get((sector-1)%len(self.sectors)))
+        if (sector+1)%len(self.sectors) in self.sectors_to_group.keys():
+            neighbors.append(self.sectors_to_group.get((sector+1)%len(self.sectors)))
+        return neighbors
+
+
+    def get_available_groups(self, sector: int):
+        in_use = self.get_neighboring_groups(sector)
+        return [i for i in range(self.size) if i not in in_use]
+
+
+    def add_sector_to_group(self, sector: int, group: int):
+        self.sectors_to_group[sector] = group
+        self.groups[group].add(sector)
+        for n in self.get_neighboring_groups(sector):
+            self.groups[group].update_count(n, "add")
+            self.groups[n].update_count(group, "add")
+
+
+    def remove_last_sector_from_group(self):
+        sector,group = self.sectors_to_group.popitem()
+        for n in self.get_neighboring_groups(sector):
+            self.groups[group].update_count(n, "remove")
+            self.groups[n].update_count(group, "remove")
+        self.groups[group].sectors.remove(sector)
+
+
+    def is_valid(self):
+        def is_same_type():
+            for group in self.groups:
+                if not len(group.sectors) == 0:
+                    nodes = []
+                    for sector in group.sectors:
+                        nodes.extend(self.sectors[sector])
+                    if self.coloring[nodes[0]] in self.color_pairing[0]:
+                        pair = self.color_pairing[0]
+                    else:
+                        pair = self.color_pairing[1]
+                    for node in nodes:
+                        if not self.coloring[node] in pair:
+                            return False
+            return True
+
+
+        def has_no_mutual_overlap():
+            for removed in self.groups:
+                for group in self.groups:
+                    if group.id == removed.id:
+                        continue
+                    if len(group.sectors) <= 1:
+                        continue
+                    reached = [group.sectors[0]]
+                    for i in range(group.sectors[0]+1, group.sectors[-1]+1):
+                        if i in removed.sectors:
+                            break
+                        if i in group.sectors:
+                            reached.append(i)
+                    if len(reached) == len(group.sectors):
+                        continue
+                    for i in range(group.sectors[0]-1, group.sectors[1]-len(self.sectors)-1, -1):
+                        if i%len(self.sectors) in removed.sectors:
+                            break
+                        if i%len(self.sectors) in group.sectors:
+                            reached.append(i)
+                    if len(reached) != len(group.sectors):
+                        return False
+            return True
+
+
+        def is_properly_connected():
+            for group in self.groups:
+                for val in group.connection_count.values():
+                    if val == 0 or val == 2:
+                        next
+                    else:
+                        return False
+            return True
+
+        return is_same_type() and has_no_mutual_overlap() and is_properly_connected()
 
 
 def import_graphs():
@@ -77,30 +209,86 @@ def import_graphs():
 
     return graphs, configs
 
-def verify_all_ring_colorings(config, colors):
-    def recurse(config, node: int, colors: list, coloring: dict):
+
+def verify_all_ring_colorings(config: Config):
+    def recurse(config, node: int, coloring: dict):
         if node > config.ring_size:
-            # return check_reducible(config.graph, node, colors, coloring)
-            return True
+            return check_reducible(config, node, coloring)
+            # return True
         graph = config.ring
         colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
-        colors_available = list(filter(lambda c: c not in colors_in_use, colors))
+        colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
         while len(colors_available) > 0:
             if len(coloring) > node:
                 coloring.popitem()
             coloring[node] = colors_available[0]
             colors_available = colors_available[1::]
-            is_reducible = recurse(config, node+1, colors, coloring)
+            is_reducible = recurse(config, node+1, coloring)
 
-    coloring = {1: colors[0]}
-    is_reducible = recurse(config, 2, colors, coloring)
+    coloring = {1: COLORS[0]}
+    is_reducible = recurse(config, 2, coloring)
 
 
-def check_reducible(graph, node: int, colors: list, coloring: dict):
-    k, _ = get_special_k(graph, colors, coloring, node)
-    if k is None or not ggd_test_service(g, k):
-        return False
+def check_reducible(config: Config, node: int, coloring: dict):
+    k, _ = get_special_k(config.graph, COLORS, coloring, node)
+    if k is None or not ggd_test_service(config.graph, k):
+        for pairing in COLOR_PAIRINGS:
+            kempe_sectors = compute_kempe_sectors(coloring, pairing)
+            # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
+            if len(kempe_sectors) < 3:
+                next
+            else:
+                verify_all_sector_groupings(config, coloring, kempe_sectors, pairing)
+
+
     return True
+
+
+def compute_kempe_sectors(coloring: dict, pairing: tuple):
+    sectors = []
+    previous = -1
+    for k,v in coloring.items():
+        if v in pairing[0]:
+            if previous == 0:
+                sectors[-1].append(k)
+            else:
+                sectors.append([k])
+            previous = 0
+        elif v in pairing[1]:
+            if previous == 1:
+                sectors[-1].append(k)
+            else:
+                sectors.append([k])
+            previous = 1
+        else:
+            raise Exception("Color not in any pair!")
+    return sectors
+
+
+def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: list, color_pairing: tuple):
+    def recurse(grouping: Grouping, sector: int, groupings: list):
+        if sector >= len(grouping.sectors):
+            if grouping.is_valid():
+                groupings.append(deepcopy(grouping))
+            grouping.remove_last_sector_from_group()
+            return
+        available = grouping.get_available_groups(sector)
+        for group in available:
+            # if len(grouping.sectors_to_group) > sector:
+            #     grouping.remove_last_sector_from_group()
+            grouping.add_sector_to_group(sector, group)
+            recurse(grouping, sector+1, groupings)
+        grouping.remove_last_sector_from_group()
+
+
+    groupings = []
+    for max_groups in range(3, len(kempe_sectors)):
+        grouping = Grouping(kempe_sectors, coloring, color_pairing, max_groups)
+        recurse(grouping, 1, groupings)
+
+    # TODO: color switching
+    print("foo")
+
 
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
     def get_special_k_recur(graph, node, colors: list, coloring: dict):
@@ -115,7 +303,7 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
             neighbours_unsort = list(graph.neighbors(node))
             neighbour_deg = list(graph.degree)
             neighbours = [i for _, i in sorted(zip(neighbour_deg, neighbours_unsort), reverse=True)]
-        avail = colors.copy()
+        avail = list(COLORS)
 
         # Remove colors already taken by neighbours
         for neighneigh in neighbours:
@@ -141,12 +329,10 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
 
     # Check if it was successful
     if color_dic is None:
-        return None
+        return None, None
 
     # Turn it into list for NX.draw
-    color_list = []
-    for node in graph.nodes:
-        color_list.append(color_dic[node])
+    color_list = color_dic.values()
     return color_list, color_dic # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 
@@ -161,7 +347,7 @@ def special_k_to_the_ggd(g, i: int):
     print(f"{i + 1}/2822")  # Hardcoded for parallelness
     print(f"ring_size:{config_arr[i].ring_size}")
     # sys.stdout.flush()
-    k, _ = get_special_k(g, colors)
+    k, _ = get_special_k(g, COLORS)
     if k is None or not ggd_test_service(g, k):
         print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
         nx.draw(g)
@@ -169,51 +355,31 @@ def special_k_to_the_ggd(g, i: int):
         plt.show()
 
 
-# Checks if coloring is isomorphism, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
-def coloring_is_isomorphism(coloring1: list, coloring2: list):
+# Checks if coloring is isomorphic up to switching colors, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
+def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     # Check same length
     if len(coloring1) != len(coloring2):
         return False
 
     # Check same amount of colours
-    if len(set(coloring1)) != len(set(coloring2)):
+    if len(set(coloring1.values())) != len(set(coloring2.values())):
         return False
 
-    # Map different colour domains into number identifiers
-    d = {ni: indi for indi, ni in enumerate(set(coloring1))}
-    coloring1 = list(map(lambda i: d[i], coloring1))
-    d = {ni: indi for indi, ni in enumerate(set(coloring2))}
-    coloring2 = list(map(lambda i: d[i], coloring2))
-
-    # Map that switches two colours
-    def switcher_hitcher(c, color1, color2):
-        if c == color1:
-            return color2
-        elif c == color2:
-            return color1
+    # Group the vertices by color
+    c1grouped = dict()
+    c2grouped = dict()
+    for k,v in sorted(coloring1.items()):
+        if v in c1grouped:
+            c1grouped[v].append(k)
         else:
-            return c
+            c1grouped[v] = [k]
+    for k,v in sorted(coloring2.items()):
+        if v in c2grouped:
+            c2grouped[v].append(k)
+        else:
+            c2grouped[v] = [k]
 
-    avail_colors = set(coloring1)
-
-    # Try to switch colours of 2 so that coloring 2 becomes equal to 1
-    for clr_i in range(len(coloring1)):
-        # If they do not match up, we have to permutatenate coloring 2
-        if coloring1[clr_i] != coloring2[clr_i]:
-            # Check if the to be replaced color has already been fixed to the permutation of coloring 1 before
-            if coloring2[clr_i] in avail_colors:
-                # Check if the replacement is already fixed to the specific permutation of coloring 1
-                if coloring1[clr_i] in avail_colors:
-                    avail_colors.remove(coloring1[clr_i])
-                    coloring2 = list(map(switcher_hitcher, coloring2, coloring1[clr_i], coloring2[clr_i]))
-                else:
-                    return False
-            else:
-                return False
-        # If they do match up fixate the color so it cant be switched
-        elif coloring2[clr_i] in avail_colors:
-            avail_colors.remove(coloring2[clr_i])
-    return True
+    return list(c1grouped.values()) == list(c2grouped.values())
 
 
 def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
@@ -283,9 +449,9 @@ def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
 ########################################################################################################################
 
 graph_arr, config_arr = import_graphs()     # Get configs from file
-colors = ["blue", "red", "green", "yellow"]
+
 colorings = []
-verify_all_ring_colorings(config_arr[0], colors)
+verify_all_ring_colorings(config_arr[0])
 # for i in range(len(config_arr)): verify_all_ring_colorings(config_arr[i], colors)
 #Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))   # Color all configs
 # for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
@@ -295,22 +461,21 @@ verify_all_ring_colorings(config_arr[0], colors)
 
 sel = 0      # Arbitrary selection of a config
 
-# Draw defined subgraphs
-nx.draw(config_arr[sel].inside)
-plt.figure()
-nx.draw(config_arr[sel].ring)
-plt.figure()
-# Draw entire graph with 4 koloring
-nx.draw(graph_arr[sel],
-               node_color=get_special_k(graph_arr[sel], colors)[0],
-               with_labels=list(graph_arr[sel].nodes))
-plt.show()
+# # Draw defined subgraphs
+# nx.draw(config_arr[sel].inside)
+# plt.figure()
+# nx.draw(config_arr[sel].ring)
+# plt.figure()
+# # Draw entire graph with 4 koloring
+# nx.draw(graph_arr[sel],
+#                node_color=get_special_k(graph_arr[sel], COLORS)[0],
+#                with_labels=list(graph_arr[sel].nodes))
+# plt.show()
 
 # # Does isomorphism do the isomorphism?????
-# print(coloring_is_isomorphism(
-#     get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[0],
-#     get_special_k(graph_arr[sel], {1, 2, 3, 4})[0]
-# ))
-
+print(coloring_is_isomorphism(
+    get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[1],
+    get_special_k(graph_arr[sel], {'a', 'b', 'c', 'd'})[1]
+))
 
 # print(get_complete_menu(graph_arr[sel], colors)[0])
