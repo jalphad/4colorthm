@@ -5,6 +5,14 @@ from enum import Enum
 import sys
 from joblib import Parallel, delayed
 
+# Global constants
+COLORS = ("blue", "red", "green", "yellow")
+COLOR_PAIRINGS = (
+    (("blue", "red"), ("green", "yellow")),
+    (("blue", "green"), ("red", "yellow")),
+    (("blue", "yellow"), ("red", "green"))
+)
+
 
 class Config:
     identifier = None
@@ -77,30 +85,43 @@ def import_graphs():
 
     return graphs, configs
 
-def verify_all_ring_colorings(config, colors):
-    def recurse(config, node: int, colors: list, coloring: dict):
+
+def verify_all_ring_colorings(config: Config):
+    def recurse(config, node: int, coloring: dict):
         if node > config.ring_size:
-            # return check_reducible(config.graph, node, colors, coloring)
+            # return check_reducible(config.graph, node, coloring)
             return True
         graph = config.ring
         colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
-        colors_available = list(filter(lambda c: c not in colors_in_use, colors))
+        colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
         while len(colors_available) > 0:
             if len(coloring) > node:
                 coloring.popitem()
             coloring[node] = colors_available[0]
             colors_available = colors_available[1::]
-            is_reducible = recurse(config, node+1, colors, coloring)
+            is_reducible = recurse(config, node+1, coloring)
 
-    coloring = {1: colors[0]}
-    is_reducible = recurse(config, 2, colors, coloring)
+    coloring = {1: COLORS[0]}
+    is_reducible = recurse(config, 2, coloring)
 
 
-def check_reducible(graph, node: int, colors: list, coloring: dict):
-    k, _ = get_special_k(graph, colors, coloring, node)
+def check_reducible(config: Config, node: int, coloring: dict):
+    k, _ = get_special_k(config.graph, COLORS, coloring, node)
     if k is None or not ggd_test_service(g, k):
-        return False
+        for pairing in COLOR_PAIRINGS:
+            kempe_sectors = compute_kempe_sectors(coloring, pairing)
+            if len(kempe_sectors) < 3:
+                next
+            else:
+                pass
+
+
     return True
+
+
+def compute_kempe_sectors(coloring, pairing):
+    pass
+
 
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
     def get_special_k_recur(graph, node, colors: list, coloring: dict):
@@ -144,9 +165,7 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
         return None
 
     # Turn it into list for NX.draw
-    color_list = []
-    for node in graph.nodes:
-        color_list.append(color_dic[node])
+    color_list = color_dic.values()
     return color_list, color_dic # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 
@@ -161,7 +180,7 @@ def special_k_to_the_ggd(g, i: int):
     print(f"{i + 1}/2822")  # Hardcoded for parallelness
     print(f"ring_size:{config_arr[i].ring_size}")
     # sys.stdout.flush()
-    k, _ = get_special_k(g, colors)
+    k, _ = get_special_k(g, COLORS)
     if k is None or not ggd_test_service(g, k):
         print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
         nx.draw(g)
@@ -169,51 +188,31 @@ def special_k_to_the_ggd(g, i: int):
         plt.show()
 
 
-# Checks if coloring is isomorphism, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
-def coloring_is_isomorphism(coloring1: list, coloring2: list):
+# Checks if coloring is isomorphic up to switching colors, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
+def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     # Check same length
     if len(coloring1) != len(coloring2):
         return False
 
     # Check same amount of colours
-    if len(set(coloring1)) != len(set(coloring2)):
+    if len(set(coloring1.values())) != len(set(coloring2.values())):
         return False
 
-    # Map different colour domains into number identifiers
-    d = {ni: indi for indi, ni in enumerate(set(coloring1))}
-    coloring1 = list(map(lambda i: d[i], coloring1))
-    d = {ni: indi for indi, ni in enumerate(set(coloring2))}
-    coloring2 = list(map(lambda i: d[i], coloring2))
-
-    # Map that switches two colours
-    def switcher_hitcher(c, color1, color2):
-        if c == color1:
-            return color2
-        elif c == color2:
-            return color1
+    # Group the vertices by color
+    c1grouped = dict()
+    c2grouped = dict()
+    for k,v in sorted(coloring1.items()):
+        if v in c1grouped:
+            c1grouped[v].append(k)
         else:
-            return c
+            c1grouped[v] = [k]
+    for k,v in sorted(coloring2.items()):
+        if v in c2grouped:
+            c2grouped[v].append(k)
+        else:
+            c2grouped[v] = [k]
 
-    avail_colors = set(coloring1)
-
-    # Try to switch colours of 2 so that coloring 2 becomes equal to 1
-    for clr_i in range(len(coloring1)):
-        # If they do not match up, we have to permutatenate coloring 2
-        if coloring1[clr_i] != coloring2[clr_i]:
-            # Check if the to be replaced color has already been fixed to the permutation of coloring 1 before
-            if coloring2[clr_i] in avail_colors:
-                # Check if the replacement is already fixed to the specific permutation of coloring 1
-                if coloring1[clr_i] in avail_colors:
-                    avail_colors.remove(coloring1[clr_i])
-                    coloring2 = list(map(switcher_hitcher, coloring2, coloring1[clr_i], coloring2[clr_i]))
-                else:
-                    return False
-            else:
-                return False
-        # If they do match up fixate the color so it cant be switched
-        elif coloring2[clr_i] in avail_colors:
-            avail_colors.remove(coloring2[clr_i])
-    return True
+    return list(c1grouped.values()) == list(c2grouped.values())
 
 
 def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
@@ -283,9 +282,9 @@ def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
 ########################################################################################################################
 
 graph_arr, config_arr = import_graphs()     # Get configs from file
-colors = ["blue", "red", "green", "yellow"]
+
 colorings = []
-verify_all_ring_colorings(config_arr[0], colors)
+# verify_all_ring_colorings(config_arr[0], COLORS)
 # for i in range(len(config_arr)): verify_all_ring_colorings(config_arr[i], colors)
 #Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))   # Color all configs
 # for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
@@ -295,22 +294,21 @@ verify_all_ring_colorings(config_arr[0], colors)
 
 sel = 0      # Arbitrary selection of a config
 
-# Draw defined subgraphs
-nx.draw(config_arr[sel].inside)
-plt.figure()
-nx.draw(config_arr[sel].ring)
-plt.figure()
-# Draw entire graph with 4 koloring
-nx.draw(graph_arr[sel],
-               node_color=get_special_k(graph_arr[sel], colors)[0],
-               with_labels=list(graph_arr[sel].nodes))
-plt.show()
+# # Draw defined subgraphs
+# nx.draw(config_arr[sel].inside)
+# plt.figure()
+# nx.draw(config_arr[sel].ring)
+# plt.figure()
+# # Draw entire graph with 4 koloring
+# nx.draw(graph_arr[sel],
+#                node_color=get_special_k(graph_arr[sel], COLORS)[0],
+#                with_labels=list(graph_arr[sel].nodes))
+# plt.show()
 
 # # Does isomorphism do the isomorphism?????
-# print(coloring_is_isomorphism(
-#     get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[0],
-#     get_special_k(graph_arr[sel], {1, 2, 3, 4})[0]
-# ))
-
+print(coloring_is_isomorphism(
+    get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[1],
+    get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[1]
+))
 
 # print(get_complete_menu(graph_arr[sel], colors)[0])
