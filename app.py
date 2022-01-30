@@ -219,15 +219,15 @@ def verify_all_ring_colorings(config: Config):
         colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
         colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
         result = []
+        if len(ambiguous_colors) > 1:
+            arbitrary_color = ambiguous_colors.pop()
+            for c in ambiguous_colors:
+                colors_available.remove(c)
+            if arbitrary_color not in colors_in_use:
+                colors_available.append(arbitrary_color)
         while len(colors_available) > 0:
             if len(coloring) > node:
                 coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
-
-            if len(ambiguous_colors) > 2:
-                if colors_available[0] in ambiguous_colors:
-                    ambiguous_colors.remove(colors_available[0])
-                    for c in ambiguous_colors:
-                        colors_available.remove(c)
             coloring[node] = colors_available[0]
             colors_available = colors_available[1::]
             result += recurse(config, node + 1, coloring, ambiguous_colors)
