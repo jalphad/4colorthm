@@ -407,69 +407,6 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     return list(c1grouped.values()) == list(c2grouped.values())
 
 
-def get_complete_menu(graph, colors, color_dic: dict = {}, start_index=0):
-    def get_complete_menu_recur(graph, node, colors: list, coloring: dict):
-        # If already colored, return current (successful) coloring
-        if node in coloring.keys():
-            return coloring
-
-        use_sort = True
-        if not use_sort:
-            neighbours = list(graph.neighbors(node))
-        else:
-            neighbours_unsort = list(graph.neighbors(node))
-            neighbour_deg = list(graph.degree)
-            neighbours = [i for _, i in sorted(zip(neighbour_deg, neighbours_unsort), reverse=True)]
-        avail = colors.copy()
-
-        # Remove colors already taken by neighbours
-        for neighneigh in neighbours:
-            if neighneigh in coloring.keys():
-                if coloring[neighneigh] in avail:
-                    avail.remove(coloring[neighneigh])
-
-        new_neighbours = list(filter(lambda n: n not in coloring.keys(), neighbours))
-
-        coloring_options = []
-        for node_color in avail:
-            new_coloring = coloring.copy()
-            new_coloring[node] = node_color
-            new_colorings = [new_coloring]
-
-            for neighneigh in new_neighbours:
-                options_for_next = []
-                for option in new_colorings:
-                    # Colour the other neighbours
-                    new_options = get_complete_menu_recur(graph, neighneigh, colors, option)
-                    new_options = list(filter(lambda x: x is not None, new_options))
-
-                    options_for_next += new_options
-                new_colorings = options_for_next
-
-            if new_colorings:
-                coloring_options += new_coloring
-
-        if not coloring_options:
-            return None
-        else:
-            return coloring_options
-
-    # color_dic: Dictionary with a colour keyed by each node
-    color_dic_list = get_complete_menu_recur(graph, list(graph.nodes)[start_index], colors, color_dic)
-
-    # Check if it was successful
-    if not color_dic_list:
-        return None
-
-    # Turn it into list for NX.draw
-    color_list_list = []
-    for k in color_dic_list:
-        cur_K_color_list = []
-        color_list_list.append(cur_K_color_list)
-        for node in graph.nodes:
-            cur_K_color_list.append(color_dic[node])
-    return color_list_list, color_dic_list # color_list of the colors corresponding to vertices by order, coloring is dictionary
-
 # Doing the stuffs
 ########################################################################################################################
 
@@ -496,11 +433,3 @@ sel = 0      # Arbitrary selection of a config
 #                node_color=get_special_k(graph_arr[sel], COLORS)[0],
 #                with_labels=list(graph_arr[sel].nodes))
 # plt.show()
-
-# # Does isomorphism do the isomorphism?????
-print(coloring_is_isomorphism(
-    get_special_k(graph_arr[sel], {'r', 'b', 'g', 'y'})[1],
-    get_special_k(graph_arr[sel], {'a', 'b', 'c', 'd'})[1]
-))
-
-# print(get_complete_menu(graph_arr[sel], colors)[0])
