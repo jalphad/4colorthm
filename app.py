@@ -230,7 +230,7 @@ def verify_all_ring_colorings(config: Config):
             ambiguous_colors.add(coloring[node])
 
         while len(colors_available) > 0:
-            if len(coloring) > node:
+            if len(coloring) >= node:
                 coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
             coloring[node] = colors_available[0]
             colors_available = colors_available[1::]
@@ -441,7 +441,6 @@ print(max([(cfg.size, cfg.identifier) for cfg in config_arr]))
 print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
 
 
-colorings = []
 verify_all_ring_colorings(config_arr[1])
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[11])
