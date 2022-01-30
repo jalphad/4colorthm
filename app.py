@@ -1,11 +1,9 @@
 from dataclasses import is_dataclass
-import re
-from unittest import case
 import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
 from copy import deepcopy
-import sys
+from itertools import combinations
 from joblib import Parallel, delayed
 
 # Global constants
@@ -213,7 +211,8 @@ def import_graphs():
 def verify_all_ring_colorings(config: Config):
     def recurse(config, node: int, coloring: dict):
         if node > config.ring_size:
-            return check_reducible(config, node, coloring)
+            result = check_reducible(config, node, coloring)
+            return result
             # return True
         graph = config.ring
         colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
@@ -236,11 +235,12 @@ def check_reducible(config: Config, node: int, coloring: dict):
             kempe_sectors = compute_kempe_sectors(coloring, pairing)
             # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
             if len(kempe_sectors) < 3:
-                next
+                continue
+            elif verify_all_sector_groupings(config, coloring, kempe_sectors, pairing):
+                return True
             else:
-                verify_all_sector_groupings(config, coloring, kempe_sectors, pairing)
-
-
+                continue
+        return False
     return True
 
 
@@ -268,7 +268,7 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
 def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: list, color_pairing: tuple):
     def recurse(grouping: Grouping, sector: int, groupings: list):
         if sector >= len(grouping.sectors):
-            if grouping.is_valid():
+            if len(set(grouping.sectors_to_group.values())) == grouping.size and grouping.is_valid():
                 groupings.append(deepcopy(grouping))
             grouping.remove_last_sector_from_group()
             return
@@ -281,13 +281,38 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
         grouping.remove_last_sector_from_group()
 
 
-    groupings = []
+    valid_groupings = []
     for max_groups in range(3, len(kempe_sectors)):
         grouping = Grouping(kempe_sectors, coloring, color_pairing, max_groups)
-        recurse(grouping, 1, groupings)
+        recurse(grouping, 1, valid_groupings)
 
-    # TODO: color switching
-    print("foo")
+    for grouping in valid_groupings:
+        result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
+        if not result:
+            return False
+    return True
+
+
+def do_color_switching(config: Config, coloring: dict, kempe_sectors: list, grouping: Grouping, color_pairing: tuple):
+    grouping_combinations = []
+    for i in range(1,grouping.size+1):
+        grouping_combinations += list(combinations(grouping.groups, i))
+    
+    for combi in grouping_combinations:
+        new_coloring = coloring.copy()
+        for group in combi:
+            nodes = [node for node in kempe_sectors[i] for i in group.sectors]
+            if coloring[nodes[0]] in color_pairing[0]:
+                color_pair = color_pairing[0]
+            else:
+                color_pair = color_pairing[1]
+            for node in nodes:
+                color = coloring[node]
+                new_coloring[node] = color_pair[(color_pair.index(color) + 1)%2]
+        k, _ = get_special_k(config.graph, COLORS, new_coloring, len(new_coloring))
+        if k is not None or ggd_test_service(config.graph, k):
+            return True
+    return False
 
 
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
