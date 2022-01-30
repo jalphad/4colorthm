@@ -442,9 +442,7 @@ print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
 
 
 colorings = []
-<<<<<<< Updated upstream
-verify_all_ring_colorings(config_arr[1])     # = conf 2821
-=======
+verify_all_ring_colorings(config_arr[1])
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[11])
 print("Time taken: ", timeit.default_timer() - start)
@@ -455,7 +453,6 @@ start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[2685])
 print("Time taken: ", timeit.default_timer() - start)
 verify_all_ring_colorings(config_arr[2820])     # = conf 2821
->>>>>>> Stashed changes
 # for i in range(len(config_arr)):
 #     print(f"{i+1}/2282")
 #     sys.stdout.flush()
