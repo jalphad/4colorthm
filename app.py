@@ -1,11 +1,13 @@
 import sys
 from dataclasses import is_dataclass
+from unittest import result
 import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
 from copy import deepcopy
 from itertools import combinations
 from joblib import Parallel, delayed
+import timeit
 
 # Global constants
 COLORS = ("blue", "red", "green", "yellow")
@@ -279,21 +281,31 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
 
 def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: list, color_pairing: tuple):
     def recurse(grouping: Grouping, sector: int, groupings: list):
+        empty_groups = grouping.size - len(set(grouping.sectors_to_group.values()))
+        sectors_left = len(grouping.sectors) - sector
+        if empty_groups >= sectors_left:
+            return
         if sector >= len(grouping.sectors):
             if len(set(grouping.sectors_to_group.values())) == grouping.size and grouping.is_valid():
                 groupings.append(deepcopy(grouping))
             grouping.remove_last_sector_from_group()
             return
         available = grouping.get_available_groups(sector)
+        global_in_use = {g for g in grouping.sectors_to_group.values()}
+        global_free = [g for g in range(grouping.size) if g not in global_in_use]
+        if len(global_free) == len(available):
+            available = available[0:1]
+        else:
+            for g in global_free:
+                available.remove(g)
         for group in available:
-            # if len(grouping.sectors_to_group) > sector:
-            #     grouping.remove_last_sector_from_group()
             grouping.add_sector_to_group(sector, group)
             recurse(grouping, sector+1, groupings)
         grouping.remove_last_sector_from_group()
 
 
     valid_groupings = []
+
     for max_groups in range(3, len(kempe_sectors)):
         grouping = Grouping(kempe_sectors, coloring, color_pairing, max_groups)
         recurse(grouping, 1, valid_groupings)
@@ -430,7 +442,20 @@ print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
 
 
 colorings = []
+<<<<<<< Updated upstream
 verify_all_ring_colorings(config_arr[1])     # = conf 2821
+=======
+start = timeit.default_timer()
+verify_all_ring_colorings(config_arr[11])
+print("Time taken: ", timeit.default_timer() - start)
+start = timeit.default_timer()
+verify_all_ring_colorings(config_arr[18])
+print("Time taken: ", timeit.default_timer() - start)
+start = timeit.default_timer()
+verify_all_ring_colorings(config_arr[2685])
+print("Time taken: ", timeit.default_timer() - start)
+verify_all_ring_colorings(config_arr[2820])     # = conf 2821
+>>>>>>> Stashed changes
 # for i in range(len(config_arr)):
 #     print(f"{i+1}/2282")
 #     sys.stdout.flush()
