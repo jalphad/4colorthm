@@ -1,3 +1,4 @@
+import sys
 from dataclasses import is_dataclass
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -225,7 +226,7 @@ def verify_all_ring_colorings(config: Config):
             is_reducible = recurse(config, node+1, coloring)
 
     coloring = {1: COLORS[0]}
-    is_reducible = recurse(config, 2, coloring)
+    return recurse(config, 2, coloring)
 
 
 def check_reducible(config: Config, node: int, coloring: dict):
@@ -413,16 +414,24 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
 
 graph_arr, config_arr = import_graphs()     # Get configs from file
 
+print(max([(cfg.size, cfg.identifier) for cfg in config_arr]))
+print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
+
+
 colorings = []
-verify_all_ring_colorings(config_arr[0])
-# for i in range(len(config_arr)): verify_all_ring_colorings(config_arr[i], colors)
+verify_all_ring_colorings(config_arr[2820])     # = conf 2821
+# for i in range(len(config_arr)):
+#     print(f"{i+1}/2282")
+#     sys.stdout.flush()
+#     verify_all_ring_colorings(config_arr[i])
+
 #Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))   # Color all configs
 # for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
 
 ### Small subset for testing purposes
 # for i in range(10): special_k_to_the_ggd(graph_arr[i], i)
 
-sel = 0      # Arbitrary selection of a config
+sel = 3      # Arbitrary selection of a config
 
 # # Draw defined subgraphs
 # nx.draw(config_arr[sel].inside)
