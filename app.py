@@ -310,8 +310,9 @@ def do_color_switching(config: Config, coloring: dict, kempe_sectors: list, grou
                 color = coloring[node]
                 new_coloring[node] = color_pair[(color_pair.index(color) + 1)%2]
         k, _ = get_special_k(config.graph, COLORS, new_coloring, len(new_coloring))
-        if k is not None or ggd_test_service(config.graph, k):
-            return True
+        if k is not None:
+            if ggd_test_service(config.graph, k):
+                return True
     return False
 
 
@@ -357,7 +358,7 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
         return None, None
 
     # Turn it into list for NX.draw
-    color_list = color_dic.values()
+    color_list = list(color_dic.values())
     return color_list, color_dic # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 
