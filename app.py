@@ -210,7 +210,7 @@ def import_graphs():
 
 
 def verify_all_ring_colorings(config: Config):
-    def recurse(config, node: int, coloring: dict):
+    def recurse(config, node: int, coloring: dict, ambiguous_colors: set):
         if node > config.ring_size:
             result = check_reducible(config, node, coloring)
             return result
@@ -220,13 +220,19 @@ def verify_all_ring_colorings(config: Config):
         colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
         while len(colors_available) > 0:
             if len(coloring) > node:
-                coloring.popitem()
+                coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
+
+            if len(ambiguous_colors) > 2:
+                if colors_available[0] in ambiguous_colors:
+                    ambiguous_colors.remove(colors_available[0])
+                    for c in ambiguous_colors:
+                        colors_available.remove(c)
             coloring[node] = colors_available[0]
             colors_available = colors_available[1::]
-            is_reducible = recurse(config, node+1, coloring)
-
-    coloring = {1: COLORS[0]}
-    return recurse(config, 2, coloring)
+            is_reducible = recurse(config, node + 1, coloring, ambiguous_colors)
+    colors_left = {c for c in COLORS}
+    coloring = {}
+    return recurse(config, 1, coloring, colors_left)
 
 
 def check_reducible(config: Config, node: int, coloring: dict):
