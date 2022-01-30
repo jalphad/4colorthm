@@ -213,25 +213,27 @@ def verify_all_ring_colorings(config: Config):
     def recurse(config, node: int, coloring: dict, ambiguous_colors: set):
         if node > config.ring_size:
             result = check_reducible(config, node, coloring)
-            return (coloring.copy(), result)
+            return [(coloring.copy(), result)]
             # return True
         graph = config.ring
         colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
         colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
         result = []
+
         if len(ambiguous_colors) > 1:
-            arbitrary_color = ambiguous_colors.pop()
             for c in ambiguous_colors:
                 colors_available.remove(c)
-            if arbitrary_color not in colors_in_use:
-                colors_available.append(arbitrary_color)
+            coloring[node] = ambiguous_colors.pop()
+            result += recurse(config, node + 1, coloring, ambiguous_colors)
+            ambiguous_colors.add(coloring[node])
+
         while len(colors_available) > 0:
             if len(coloring) > node:
                 coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
             coloring[node] = colors_available[0]
             colors_available = colors_available[1::]
             result += recurse(config, node + 1, coloring, ambiguous_colors)
-
+        return result
 
     colors_left = {c for c in COLORS}
     coloring = {}
@@ -428,7 +430,7 @@ print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
 
 
 colorings = []
-verify_all_ring_colorings(config_arr[2820])     # = conf 2821
+verify_all_ring_colorings(config_arr[1])     # = conf 2821
 # for i in range(len(config_arr)):
 #     print(f"{i+1}/2282")
 #     sys.stdout.flush()
