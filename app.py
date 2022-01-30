@@ -212,34 +212,30 @@ def import_graphs():
 
 
 def verify_all_ring_colorings(config: Config):
-    def recurse(config, node: int, coloring: dict, ambiguous_colors: set):
+    def recurse(config, node: int, coloring: dict):
         if node > config.ring_size:
             result = check_reducible(config, node, coloring)
             return [(coloring.copy(), result)]
             # return True
         graph = config.ring
-        colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
-        colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
         result = []
 
-        if len(ambiguous_colors) > 1:
-            for c in ambiguous_colors:
-                colors_available.remove(c)
-            coloring[node] = ambiguous_colors.pop()
-            result += recurse(config, node + 1, coloring, ambiguous_colors)
-            ambiguous_colors.add(coloring[node])
+        global_in_use = set(coloring.values())
+        global_free = list(filter(lambda c: c not in global_in_use, COLORS))
+        colors_available = list(global_in_use) + global_free[0:1]
+        colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
+        colors_available = list(filter(lambda c: c not in colors_in_use, colors_available))
 
         while len(colors_available) > 0:
             if len(coloring) > node:
                 coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
             coloring[node] = colors_available[0]
             colors_available = colors_available[1::]
-            result += recurse(config, node + 1, coloring, ambiguous_colors)
+            result += recurse(config, node + 1, coloring)
         return result
 
-    colors_left = {c for c in COLORS}
     coloring = {}
-    return recurse(config, 1, coloring, colors_left)
+    return recurse(config, 1, coloring)
 
 
 def check_reducible(config: Config, node: int, coloring: dict):
@@ -296,7 +292,7 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
         if len(global_free) == len(available):
             available = available[0:1]
         else:
-            for g in global_free:
+            for g in global_free[1::]:
                 available.remove(g)
         for group in available:
             grouping.add_sector_to_group(sector, group)
@@ -448,6 +444,9 @@ verify_all_ring_colorings(config_arr[11])
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[18])
+print("Time taken: ", timeit.default_timer() - start)
+start = timeit.default_timer()
+verify_all_ring_colorings(config_arr[29])
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[2685])
