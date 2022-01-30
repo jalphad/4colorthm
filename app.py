@@ -297,7 +297,7 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
         if len(global_free) == len(available):
             available = available[0:1]
         else:
-            for g in global_free:
+            for g in global_free[1::]:
                 available.remove(g)
         for group in available:
             grouping.add_sector_to_group(sector, group)
@@ -448,6 +448,9 @@ verify_all_ring_colorings(config_arr[11])
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[18])
+print("Time taken: ", timeit.default_timer() - start)
+start = timeit.default_timer()
+verify_all_ring_colorings(config_arr[29])
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[2685])
