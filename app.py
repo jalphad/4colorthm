@@ -217,37 +217,56 @@ def import_graphs():
 
 
 def verify_all_ring_colorings(config: Config):
+    # Recursive function over all ring nodes: "1" -> "RING_NODES_AMOUNT".
+    # Note that the first nodes of the conf are the ring.
     def recurse(config, node: int, coloring: dict, ambiguous_colors: list):
+        # BASE KAAS (base case)
+        # If node number is > ring_size, the node is not in the ring, but in the inside.
         if node > config.ring_size:
+            # Therefore all nodes in ring are colored: Now check reducibility and return result
             recurse.coloring_cnt += 1
             result = check_reducible(config, node, coloring)
             return [(coloring.copy(), result)]
-            # return True
+        # RECURSIVE KEES
         else:
             graph = config.ring
-            colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
-            colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
             result = []
 
-            if len(ambiguous_colors) > 1:
-                for c in ambiguous_colors:
-                    colors_available.remove(c)
-                coloring[node] = ambiguous_colors.pop()
-                result += recurse(config, node + 1, coloring, ambiguous_colors)
-                ambiguous_colors.append(coloring[node])
+            # Check which colors are not taken by neighbours
+            colors_in_use = [coloring[i] for i in list(graph.neighbors(node)) if i in coloring.keys()]
+            colors_available = list(filter(lambda c: c not in colors_in_use, COLORS))
 
-            while len(colors_available) > 0:
-                while len(coloring) > node:
+            # If there are more than 1 color unused, choosing between them is arbitrary and would result in isomorphism
+            # If there is an arbitrary color decision (2 or more colors not used in the entire coloring), split recursive
+            # cases for the "new" color, and other available colors.
+
+            if len(ambiguous_colors) > 1:  # If there are multiple unused colors
+                for c in ambiguous_colors:  # Ignore all of these in the code below
+                    colors_available.remove(c)
+                # Now execute the case of picking one of the colours arbitrarily separately
+                coloring[node] = ambiguous_colors.pop()     # Pick an unused color (now used, so removed from ambig...)
+                result += recurse(config, node + 1, coloring, ambiguous_colors) # Use it and continue recursion
+                ambiguous_colors.append(coloring[node])     # For the other cases it's not used, push it back on
+
+            while len(colors_available) > 0:    # The normal case: go over all possible colors for this node
+
+                while len(coloring) > node:     # Same coloring structure is used, so we have to undo the effect further
+                    # down the recursion before we a new possible color
                     coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
-                coloring[node] = colors_available[0]
-                colors_available = colors_available[1::]
-                result += recurse(config, node + 1, coloring, ambiguous_colors)
+                coloring[node] = colors_available[0]    # Try a color
+                colors_available = colors_available[1::]    # Remove color from our to-do list
+                result += recurse(config, node + 1, coloring, ambiguous_colors)     # Append result tuple to long list
             return result
 
-    colors_left = [c for c in COLORS]
-    coloring = {}
-    recurse.coloring_cnt = 0
-    result = recurse(config, 1, coloring)
+    # Set up
+    colors_left = [c for c in COLORS]   # ALl colors are not used in the whole coloring. Starting with any is arbitrary
+    coloring = {}    # Start with empty coloring
+    recurse.coloring_cnt = 0    # Set the counter for tracking how may ring colorings we actually
+
+    # Call the recursive function
+    result = recurse(config, 1, coloring, colors_left)  #  result temporarily for possible displays
+
+    # Display results
     if PRINT_FALSE:
         if False in result[::][1]:
             print(f"Non-reducible coloring exists: {config.identifier}")
@@ -255,8 +274,6 @@ def verify_all_ring_colorings(config: Config):
         print(recurse.coloring_cnt)
     if PRINT_RESULTS:
         print(result)
-    result = recurse(config, 1, coloring, colors_left)
-    print(recurse.coloring_cnt)
     return result
 
 
