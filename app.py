@@ -33,8 +33,13 @@ class Config:
     inside = None
 
 
+# Data structure to organise info about the Kempe-"blocks" in a ring, for a given coloring/pairing
+# Note that an instance is constructed externally, kempe_sectors are not automatically generated for example
+# Can also be instantiated with data that would not constitute a grouping. is_valid determines whether this is actually
+# the case.
 class Grouping:
 
+    # Group essentially stored as a list, and the amount of connections to each other group is tracked
     class Group:
         def __init__(self, id: int, grouping_size: int) -> None:
             self.id = id
@@ -56,52 +61,59 @@ class Grouping:
                 self.connection_count[group] -= 1
             else:
                 raise Exception("No valid action")
+            if self.connection_count[group] < 0:
+                raise Exception("Negative amount of connections")
 
-
+    # Grouping is a list of groups, while simultaneously keeping track of the group of every sector for performance
     def __init__(self, kempe_sectors: list, coloring: dict, color_pairing: tuple, size: int) -> None:
-        self.size = size
-        self.sectors = kempe_sectors
+        self.size = size    # Amount of groups
+        self.sectors = kempe_sectors    # In order of ring => i & i+1%ringsize are neighbouring sectors
         self.coloring = coloring
         self.color_pairing = color_pairing
         self.groups = []
         for i in range(size):
             self.groups.append(self.Group(i, size))
-        self.sectors_to_group = {}
-        self.add_sector_to_group(0,0)
+        self.sectors_to_group = {}  # Dictionary for faster performance
+        self.add_sector_to_group(0, 0)   # "First" sector is added to block 0.
 
-
+    # Returns groups of neighbouring sectors
+    # Note:
+    # If sectors don't belong to a group yet, then also no group is returned for that neighbour
+    # Neighbouring sectors are never in the same group
     def get_neighboring_groups(self, sector: int):
         neighbors = []
-        if (sector-1)%len(self.sectors) in self.sectors_to_group.keys():
-            neighbors.append(self.sectors_to_group.get((sector-1)%len(self.sectors)))
+        if (sector-1)%len(self.sectors) in self.sectors_to_group.keys():    # If the sector belongs to a group
+            neighbors.append(self.sectors_to_group.get((sector-1)%len(self.sectors)))   # Get the group of neighbour
         if (sector+1)%len(self.sectors) in self.sectors_to_group.keys():
             neighbors.append(self.sectors_to_group.get((sector+1)%len(self.sectors)))
         return neighbors
 
-
+    # Returns all groups not used by neighbouring sectors
     def get_available_groups(self, sector: int):
         in_use = self.get_neighboring_groups(sector)
         return [i for i in range(self.size) if i not in in_use]
 
-
+    # Title says it all
     def add_sector_to_group(self, sector: int, group: int):
-        self.sectors_to_group[sector] = group
-        self.groups[group].add(sector)
-        for n in self.get_neighboring_groups(sector):
-            self.groups[group].update_count(n, "add")
-            self.groups[n].update_count(group, "add")
+        self.sectors_to_group[sector] = group   # Tie group to the sector
+        self.groups[group].add(sector)  # Add sector to collection of sectors of the group
+        # If sector next to it is in a group, then both groups are connected => +1 connection_count
+        for n in self.get_neighboring_groups(sector):   # Groups of neighbouring sectors are now connected so:
+            self.groups[group].update_count(n, "add")   # Added group has one more connection
+            self.groups[n].update_count(group, "add")   # The neighbouring group has one more connection with added group
 
-
+    # CTRL_Z for add_sector_to_group
     def remove_last_sector_from_group(self):
-        sector,group = self.sectors_to_group.popitem()
-        for n in self.get_neighboring_groups(sector):
+        sector, group = self.sectors_to_group.popitem()  # Remove "registration of group membership" for sector
+        # Idem dito as in add_sector
+        for n in self.get_neighboring_groups(sector):   # For the groups of neighbouring sectors
             self.groups[group].update_count(n, "remove")
             self.groups[n].update_count(group, "remove")
         self.groups[group].sectors.remove(sector)
 
-
+    # Checks the 3 conditions on whether this is actually a grouping / blocks
     def is_valid(self):
-        def is_same_type():
+        def is_same_type():     # All colors in group must be member of the same color pair
             for group in self.groups:
                 if not len(group.sectors) == 0:
                     nodes = []
@@ -116,33 +128,34 @@ class Grouping:
                             return False
             return True
 
-
+        # Removing (nodes of) ANY group in the ring => all groups are in one connected component of the leftover "ring"
         def has_no_mutual_overlap():
             for removed in self.groups:
                 for group in self.groups:
-                    if group.id == removed.id:
+                    if group.id == removed.id:  # We're only  checking the groups we didn't remove
                         continue
-                    if len(group.sectors) <= 1:
+                    if len(group.sectors) <= 1:     # Edge case
                         continue
-                    reached = [group.sectors[0]]
-                    for i in range(group.sectors[0]+1, group.sectors[-1]+1):
+                    reached = [group.sectors[0]]    # Start with the "first" sector"
+                    # List all sectors of the group that we can reach without going over removed sector
+                    for i in range(group.sectors[0]+1, group.sectors[-1]+1):  # In one direction
                         if i in removed.sectors:
                             break
                         if i in group.sectors:
                             reached.append(i)
-                    if len(reached) == len(group.sectors):
+                    if len(reached) == len(group.sectors):  # If already succeeded, bypass other direction
                         continue
-                    for i in range(group.sectors[0]-1, group.sectors[1]-len(self.sectors)-1, -1):
+                    for i in range(group.sectors[0]-1, group.sectors[1]-len(self.sectors)-1, -1): # In other direction
                         if i%len(self.sectors) in removed.sectors:
                             break
                         if i%len(self.sectors) in group.sectors:
                             reached.append(i)
-                    if len(reached) != len(group.sectors):
+                    if len(reached) != len(group.sectors):  # Implies we couldn't reach all sectors => not connected
                         return False
             return True
 
 
-        def is_properly_connected():
+        def is_properly_connected():    # If blocks are connected => they are connected at two points
             for group in self.groups:
                 for val in group.connection_count.values():
                     if val == 0 or val == 2:
@@ -448,7 +461,7 @@ def special_k_to_the_ggd(g, i: int):
     # sys.stdout.flush()
     k, _ = get_special_k(g, COLORS)
     if k is None or not ggd_test_service(g, k):
-        print(f'WEEEEUUUUEEEEUUUUU NO COLOR IN MY LIFE: {i}')
+        print(f'ALARM: NOT COLORABLE: {i}')
         nx.draw(g)
         plt.title(f"i={i}")
         plt.show()
