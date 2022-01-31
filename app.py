@@ -251,6 +251,8 @@ def check_reducible(config: Config, node: int, coloring: dict):
             # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
             if len(kempe_sectors) < 3:
                 continue
+            elif len(kempe_sectors)%2 == 1:
+                continue
             elif verify_all_sector_groupings(config, coloring, kempe_sectors, pairing):
                 return True
             else:
@@ -284,7 +286,8 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
     def recurse(grouping: Grouping, sector: int, groupings: list):
         empty_groups = grouping.size - len(set(grouping.sectors_to_group.values()))
         sectors_left = len(grouping.sectors) - sector
-        if empty_groups >= sectors_left:
+        if empty_groups > sectors_left:
+            grouping.remove_last_sector_from_group()
             return
         if sector >= len(grouping.sectors):
             if len(set(grouping.sectors_to_group.values())) == grouping.size and grouping.is_valid():
@@ -307,10 +310,21 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
 
     valid_groupings = []
 
-    for max_groups in range(3, len(kempe_sectors)):
-        grouping = Grouping(kempe_sectors, coloring, color_pairing, max_groups)
-        recurse(grouping, 1, valid_groupings)
+    # While I haven't looked at a proof for this it seems that:
+    # - an uneven amount of kempe sectors will never have a valid grouping
+    # - for n kempe sectors where n is even, will only have valid groupings of size n/2 + 1
+    groups = len(kempe_sectors)//2 + 1
+    grouping = Grouping(kempe_sectors, coloring, color_pairing, groups)
+    recurse(grouping, 1, valid_groupings)
 
+    # for max_groups in range(3, len(kempe_sectors)):
+    #     grouping = Grouping(kempe_sectors, coloring, color_pairing, max_groups)
+    #     recurse(grouping, 1, valid_groupings)
+
+    if len(valid_groupings) == 0:
+        return False
+
+    print(f"{len(valid_groupings)} valid groupings found")
     for grouping in valid_groupings:
         result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
         if not result:
@@ -442,7 +456,10 @@ print(max([(cfg.size, cfg.identifier) for cfg in config_arr]))
 print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
 
 
-verify_all_ring_colorings(config_arr[1])
+colorings = []
+start = timeit.default_timer()
+verify_all_ring_colorings(config_arr[0])
+print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[11])
 print("Time taken: ", timeit.default_timer() - start)
@@ -455,7 +472,9 @@ print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[2685])
 print("Time taken: ", timeit.default_timer() - start)
+start = timeit.default_timer()
 verify_all_ring_colorings(config_arr[2820])     # = conf 2821
+print("Time taken: ", timeit.default_timer() - start)
 # for i in range(len(config_arr)):
 #     print(f"{i+1}/2282")
 #     sys.stdout.flush()
