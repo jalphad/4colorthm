@@ -9,6 +9,10 @@ from itertools import combinations
 from joblib import Parallel, delayed
 import timeit
 
+# Global settings
+PRINT_CLR_CNT = True
+PRINT_RESULTS = False
+
 # Global constants
 COLORS = ("blue", "red", "green", "yellow")
 COLOR_PAIRINGS = (
@@ -238,7 +242,10 @@ def verify_all_ring_colorings(config: Config):
     coloring = {}
     recurse.coloring_cnt = 0
     result = recurse(config, 1, coloring)
-    print(recurse.coloring_cnt)
+    if PRINT_CLR_CNT:
+        print(recurse.coloring_cnt)
+    if PRINT_RESULTS:
+        print(result)
     return result
 
 
@@ -456,7 +463,7 @@ def find_coloring_isomorphism(x):
 
 def timed_reducibility_check(x):
     start = timeit.default_timer()
-    print(verify_all_ring_colorings(config_arr[x]))
+    verify_all_ring_colorings(config_arr[x])
     print("Time taken: ", timeit.default_timer() - start)
 
 
