@@ -214,6 +214,7 @@ def import_graphs():
 def verify_all_ring_colorings(config: Config):
     def recurse(config, node: int, coloring: dict):
         if node > config.ring_size:
+            recurse.coloring_cnt += 1
             result = check_reducible(config, node, coloring)
             return [(coloring.copy(), result)]
             # return True
@@ -235,7 +236,10 @@ def verify_all_ring_colorings(config: Config):
         return result
 
     coloring = {}
-    return recurse(config, 1, coloring)
+    recurse.coloring_cnt = 0
+    result = recurse(config, 1, coloring)
+    print(recurse.coloring_cnt)
+    return result
 
 
 def check_reducible(config: Config, node: int, coloring: dict):
@@ -319,7 +323,7 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
     if len(valid_groupings) == 0:
         return False
 
-    print(f"{len(valid_groupings)} valid groupings found")
+    # print(f"{len(valid_groupings)} valid groupings found")
     for grouping in valid_groupings:
         result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
         if not result:
@@ -450,25 +454,24 @@ graph_arr, config_arr = import_graphs()     # Get configs from file
 print(max([(cfg.size, cfg.identifier) for cfg in config_arr]))
 print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
 
-
 colorings = []
 start = timeit.default_timer()
-verify_all_ring_colorings(config_arr[0])
+print(verify_all_ring_colorings(config_arr[0]))
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
-verify_all_ring_colorings(config_arr[11])
+print(verify_all_ring_colorings(config_arr[11]))
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
-verify_all_ring_colorings(config_arr[18])
+print(verify_all_ring_colorings(config_arr[18]))
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
-verify_all_ring_colorings(config_arr[29])
+print(verify_all_ring_colorings(config_arr[29]))
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
-verify_all_ring_colorings(config_arr[2685])
+print(verify_all_ring_colorings(config_arr[2685]))
 print("Time taken: ", timeit.default_timer() - start)
 start = timeit.default_timer()
-verify_all_ring_colorings(config_arr[2820])     # = conf 2821
+print(verify_all_ring_colorings(config_arr[2820]))   # = conf 2821
 print("Time taken: ", timeit.default_timer() - start)
 # for i in range(len(config_arr)):
 #     print(f"{i+1}/2282")
