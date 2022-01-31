@@ -1,3 +1,5 @@
-.env
+.env/
 U_2822.conf
 vier-kleuren.txt
+/.idea/
+/.gitignore
