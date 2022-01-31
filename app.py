@@ -12,6 +12,7 @@ import timeit
 # Global settings
 PRINT_CLR_CNT = True
 PRINT_RESULTS = False
+PRINT_FALSE = True
 
 # Global constants
 COLORS = ("blue", "red", "green", "yellow")
@@ -247,6 +248,9 @@ def verify_all_ring_colorings(config: Config):
     coloring = {}
     recurse.coloring_cnt = 0
     result = recurse(config, 1, coloring)
+    if PRINT_FALSE:
+        if False in result[::][1]:
+            print(f"Non-reducible coloring exists: {config.identifier}")
     if PRINT_CLR_CNT:
         print(recurse.coloring_cnt)
     if PRINT_RESULTS:
