@@ -451,53 +451,54 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     return list(c1grouped.values()) == list(c2grouped.values())
 
 
+def find_coloring_isomorphism(x):
+    ans = verify_all_ring_colorings(config_arr[x])
+    for a in ans:
+        for b in ans:
+            if a != b:
+                print(f"{ans.index(a)} x {ans.index(b)}: {coloring_is_isomorphism(a[0], b[0])}")
+
+
+def timed_reducibility_check(x):
+    start = timeit.default_timer()
+    print(verify_all_ring_colorings(config_arr[x]))
+    print("Time taken: ", timeit.default_timer() - start)
+
+
+def draw_defined_subgraphs(sel):
+    nx.draw(config_arr[sel].inside)
+    plt.figure()
+    nx.draw(config_arr[sel].ring)
+    plt.figure()
+    # Draw entire graph with 4 koloring
+    nx.draw(graph_arr[sel],
+                   node_color=get_special_k(graph_arr[sel], COLORS)[0],
+                   with_labels=list(graph_arr[sel].nodes))
+    plt.show()
+
+
+def color_graphs_all(multi_thread=True):
+    if multi_thread:
+        Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))  # Color all configs
+    else:
+        for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
+
+
+def d_reduce_all(multi_thread=True):
+    if multi_thread:
+        Parallel(n_jobs=8)(delayed(verify_all_ring_colorings)(cfg) for cfg in config_arr)  # Color all configs
+    else:
+        for cfg in config_arr: verify_all_ring_colorings(cfg)    # Single thread version
+
+
 # Doing the stuffs
 ########################################################################################################################
 
 graph_arr, config_arr = import_graphs()     # Get configs from file
 
-print(max([(cfg.size, cfg.identifier) for cfg in config_arr]))
-print(max([(cfg.ring_size, cfg.identifier) for cfg in config_arr]))
-
-colorings = []
-start = timeit.default_timer()
-print(verify_all_ring_colorings(config_arr[0]))
-print("Time taken: ", timeit.default_timer() - start)
-start = timeit.default_timer()
-print(verify_all_ring_colorings(config_arr[11]))
-print("Time taken: ", timeit.default_timer() - start)
-start = timeit.default_timer()
-print(verify_all_ring_colorings(config_arr[18]))
-print("Time taken: ", timeit.default_timer() - start)
-start = timeit.default_timer()
-print(verify_all_ring_colorings(config_arr[29]))
-print("Time taken: ", timeit.default_timer() - start)
-start = timeit.default_timer()
-print(verify_all_ring_colorings(config_arr[2685]))
-print("Time taken: ", timeit.default_timer() - start)
-start = timeit.default_timer()
-print(verify_all_ring_colorings(config_arr[2820]))   # = conf 2821
-print("Time taken: ", timeit.default_timer() - start)
-# for i in range(len(config_arr)):
-#     print(f"{i+1}/2282")
-#     sys.stdout.flush()
-#     verify_all_ring_colorings(config_arr[i])
-
-#Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))   # Color all configs
-# for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
-
-### Small subset for testing purposes
-# for i in range(10): special_k_to_the_ggd(graph_arr[i], i)
-
-sel = 3      # Arbitrary selection of a config
-
-# # Draw defined subgraphs
-# nx.draw(config_arr[sel].inside)
-# plt.figure()
-# nx.draw(config_arr[sel].ring)
-# plt.figure()
-# # Draw entire graph with 4 koloring
-# nx.draw(graph_arr[sel],
-#                node_color=get_special_k(graph_arr[sel], COLORS)[0],
-#                with_labels=list(graph_arr[sel].nodes))
-# plt.show()
+timed_reducibility_check(0)
+timed_reducibility_check(11)
+timed_reducibility_check(18)
+timed_reducibility_check(29)
+timed_reducibility_check(2685)
+timed_reducibility_check(2820)
