@@ -293,9 +293,11 @@ def verify_all_ring_colorings(config: Config):
 def check_reducible(config: Config, node: int, coloring: dict):
     k, _ = get_special_k(config.graph, COLORS, coloring, node)
     if k is None or not ggd_test_service(config.graph, k):
+        # If not extending to inside, find a color pairing for which all possible groupings/block decomposition works
         for pairing in COLOR_PAIRINGS:
             kempe_sectors = compute_kempe_sectors(coloring, pairing)
             # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
+            # TODO: Proof?
             if len(kempe_sectors) < 3:
                 continue
             elif len(kempe_sectors)%2 == 1:
@@ -305,12 +307,15 @@ def check_reducible(config: Config, node: int, coloring: dict):
             else:
                 continue
         return False
-    return True
+    else:   # If we can color the inside straight away, bypass the rest and move on
+        return True
 
 
 def compute_kempe_sectors(coloring: dict, pairing: tuple):
     sectors = []
     previous = -1
+    # As byproduct of other code / way rings are in conf file, consecutive nodes in for loop are neighbours in ring
+    # TODO: For rigorousness and stability maybe sort this first per key?
     for k,v in coloring.items():
         if v in pairing[0]:
             if previous == 0:
@@ -326,6 +331,13 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
             previous = 1
         else:
             raise Exception("Color not in any pair!")
+    # Merge if first and last are actually same
+    if ((sectors[0][0] in pairing[0] and sectors[-1][0] in pairing[0]) or
+        (sectors[0][0] in pairing[1] and sectors[-1][0] in pairing[1])):
+        if sectors[0] != sectors[-1]:
+            sectors[0] += sectors[-1]
+            sectors.pop(-1)
+
     return sectors
 
 
