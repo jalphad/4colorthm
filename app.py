@@ -280,13 +280,14 @@ def find_all_ring_colorings(size: int):
 
 
 def check_reducible(config: Config, colorings: list, groupings: dict):
+    results = []
     good_colorings = set()
-    good_colorings_diff = 1 # any nr > 0 to start
+    diff = 1 # any nr > 0 to start
     # We expect to find new good colorings each time
-    while good_colorings_diff > 0:
-        start = len(good_colorings)
+    while diff > 0:
         remaining_colorings = []
         remaining_groupings = {}
+        new_good_colorings = set()
         for i in range(len(colorings)):
             reducible = False
             for pairing in groupings[i]:
@@ -299,19 +300,21 @@ def check_reducible(config: Config, colorings: list, groupings: dict):
                         break
                 if success == len(groupings[i][pairing]):
                     reducible = True
-                    isomorphisms = isomorphism_generator(colorings[i])
+                    isomorphisms = isomorphism_generator(colorings[i].values())
+                    results.append((isomorphisms[0], True))
                     for isomorph in isomorphisms:
-                        good_colorings.add(isomorph)
+                        new_good_colorings.add(isomorph)
                     break
             if not reducible:
                 remaining_colorings.append(colorings[i])
-                remaining_groupings[i] = groupings[i]
+                remaining_groupings[len(remaining_groupings)] = groupings[i]
         colorings = remaining_colorings
         groupings = remaining_groupings
-        good_colorings_diff = len(good_colorings) - start
+        for c in new_good_colorings:
+            good_colorings.add(c)
+        diff = len(new_good_colorings)
 
-    results = [(c, True) for c in good_colorings]
-    results.extend([(c, False) for c in remaining_colorings.values()])
+    results.extend([(c.values(), False) for c in remaining_colorings])
 
     return results
 
@@ -566,7 +569,7 @@ def isomorphism_generator(coloring: list):
                    (1, 3), (2, 4), ((1, 3), (2, 4)),
                    (1, 4), (2, 3), ((1, 4), (2, 3)))
 
-    isomorphisms = []
+    isomorphisms = [tuple(coloring)]
     for pair in color_pairs:
         switched = []
         if type(pair[0]) == int:
