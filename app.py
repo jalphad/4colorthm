@@ -439,6 +439,34 @@ def do_color_switching(config: Config, coloring: dict, kempe_sectors: list, grou
     return False # No color switch could make our relationship work, we can no longer keep living like this
 
 
+# Different version
+def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
+    def recurse(config: Config, coloring: dict, grouping: Grouping, cur_group_index:int):
+        if cur_group_index >= grouping.size:    # Base case
+            k, _ = get_special_k(config.graph, COLORS, coloring, len(coloring))
+            if k is not None:  # If we found a coloring over the whole graph (w/ inside)
+                if ggd_test_service(config.graph, k):  # Verify that this extendable coloring is valid
+                    return True  # Hurray, you are D-reducible
+            else:
+                return False
+        else:
+            if recurse(config, coloring, grouping, cur_group_index+1):
+                return True
+            else:
+                cur_group = grouping.groups[cur_group_index]
+                nodes = [node for i in cur_group.sectors for node in grouping.sectors[i]]  # List all individual nodes
+                if coloring[nodes[0]] in grouping.color_pairing[
+                    0]:  # Check first node to see colour pairing of the sector/group
+                    color_pair = grouping.color_pairing[0]
+                else:
+                    color_pair = grouping.color_pairing[1]
+                for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
+                    color = coloring[node]
+                    coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
+                return recurse(config, coloring, grouping, cur_group_index)
+    return recurse(config, coloring, grouping, 0)
+
+
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
     def get_special_k_recur(graph, node, colors: list, coloring: dict):
         # If already colored, return current (successful) coloring
