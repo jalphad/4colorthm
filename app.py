@@ -399,7 +399,7 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
 
     # print(f"{len(valid_groupings)} valid groupings found")
     for grouping in valid_groupings:
-        # result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
+        #result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
         result = do_color_switching_2(config, coloring, grouping)
     # From my current understanding, I don't have to be able to color switch and then color all block decompositions
     # If I can find a valid block decomposition for which I can then do color switching which extends to the configuration inside we're done
@@ -465,7 +465,12 @@ def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
                 for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
                     color = coloring[node]
                     coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
-                return recurse(config, coloring, grouping, cur_group_index+1)
+                result = recurse(config, coloring, grouping, cur_group_index+1)
+                # Switch back!
+                for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
+                    color = coloring[node]
+                    coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
+                return result
     return recurse(config, coloring, grouping, 0)
 
 
