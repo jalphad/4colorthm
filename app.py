@@ -664,7 +664,7 @@ configs = sorted(configs, key=lambda c: c.ring_size)
 
 config_tracker = 0
 for ring_size in range(6,10):
-    start = timeit.default_timer()
+    # start = timeit.default_timer()
     colorings = find_all_ring_colorings(ring_size)
     groupings = {}
     for i in range(len(colorings)):
@@ -686,9 +686,7 @@ for ring_size in range(6,10):
             config_tracker = j
             break
         r = check_reducible(configs[j], colorings, groupings)
-    print("Time taken: ", timeit.default_timer() - start)
-
-print("foo")
+    # print("Time taken: ", timeit.default_timer() - start)
 
 # timed_reducibility_check(11)
 # timed_reducibility_check(18)
