@@ -209,7 +209,7 @@ def import_graphs():
         elif state is State.VERTEX:
             config_data = line.split()
             nr_of_vertices = int(config_data[0])
-            cur_graph.add_nodes_from(range(1, nr_of_vertices + 1))
+            cur_graph.add_nodes_from(range(nr_of_vertices))
 
             cur_config.graph = cur_graph
             cur_config.size = int(config_data[0])
@@ -222,9 +222,9 @@ def import_graphs():
             if line == '0':
                 pass
             elif int(config_data[0]) <= nr_of_vertices:
-                vertex = int(config_data[0])
+                vertex = int(config_data[0]) - 1
                 for i in range(2, 2 + int(config_data[1])):
-                    cur_graph.add_edge(vertex, int(config_data[i]))
+                    cur_graph.add_edge(vertex, int(config_data[i]) - 1)
             else:
                 pass
 
@@ -280,45 +280,34 @@ def find_all_ring_colorings(size: int):
 
 
 def check_reducible(config: Config, colorings: list, groupings: dict):
-    remaining_colorings = []
-    remaining_groupings = {}
     good_colorings = set()
-    for i in range(len(colorings)):
-        k, _ = get_special_k(config.graph, COLORS, colorings[i], config.ring_size)
-        if k is None or not ggd_test_service(config.graph, k):
-            remaining_colorings.append(colorings[i])
-            remaining_groupings[len(remaining_groupings)] = groupings[i]
-        else:
-            isomorphisms = isomorphism_generator(colorings[i].values())
-            for isomorph in isomorphisms:
-                good_colorings.add(isomorph)
-    good_colorings_diff = len(good_colorings)
+    good_colorings_diff = 1 # any nr > 0 to start
     # We expect to find new good colorings each time
     while good_colorings_diff > 0:
         start = len(good_colorings)
-        colorings = remaining_colorings
-        groupings = remaining_groupings
         remaining_colorings = []
         remaining_groupings = {}
-        for j in range(len(colorings)):
+        for i in range(len(colorings)):
             reducible = False
-            for pairing in groupings[j]:
+            for pairing in groupings[i]:
                 success = 0
-                for grouping in groupings[j][pairing]:
-                    res = do_color_switching(colorings[j], grouping, pairing, good_colorings)
+                for grouping in groupings[i][pairing]:
+                    res = do_color_switching(colorings[i], grouping, pairing, good_colorings, config)
                     if res:
                         success += 1
                     else:
                         break
-                if success == len(groupings[j][pairing]):
+                if success == len(groupings[i][pairing]):
                     reducible = True
-                    isomorphisms = isomorphism_generator(colorings[j])
+                    isomorphisms = isomorphism_generator(colorings[i])
                     for isomorph in isomorphisms:
                         good_colorings.add(isomorph)
                     break
             if not reducible:
-                remaining_colorings.append(colorings[j])
-                remaining_groupings[j] = groupings[j]
+                remaining_colorings.append(colorings[i])
+                remaining_groupings[i] = groupings[i]
+        colorings = remaining_colorings
+        groupings = remaining_groupings
         good_colorings_diff = len(good_colorings) - start
 
     results = [(c, True) for c in good_colorings]
@@ -405,7 +394,7 @@ def find_all_sector_groupings(coloring: dict, kempe_sectors: list, color_pairing
 
 # Why are sectors not implicitly passed using the Grouping parameter, but separately? @Joren
 # Try all possible allowed changes in the coloring, until we find end up with an extendable one
-def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple, good_colorings: set):
+def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple, good_colorings: set, config: Config):
     kempe_sectors = grouping.sectors
     grouping_combinations = []
     for i in range(1, grouping.size + 1):  # Combinatorics: all possible combinations of allowed color switch actions
@@ -422,7 +411,11 @@ def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple,
             for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
                 color = coloring[node]
                 new_coloring[node] = color_pair[(color_pair.index(color) + 1)%2]
-        if tuple(new_coloring.values()) in good_colorings:
+        if len(good_colorings) == 0:
+            k, _ = get_special_k(config.graph, COLORS, new_coloring, config.ring_size)
+            if k is not None and ggd_test_service(config.graph, k):
+                return True # Hurray, you are D-reducible
+        elif tuple(new_coloring.values()) in good_colorings:
             return True # Hurray, you are D-reducible
     return False # No color switch could make our relationship work, we can no longer keep living like this
 
@@ -531,13 +524,15 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
                 new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring)
                 if new_coloring is None:
                     break
+                elif len(graph) == len(new_coloring):
+                    break
             if new_coloring is not None:
                 return new_coloring
 
         return None
 
     # color_dic: Dictionary with a colour keyed by each node
-    color_dic = get_special_k_recur(graph, list(graph.nodes)[start_index], colors, color_dic)
+    color_dic = get_special_k_recur(graph, start_index, colors, color_dic)
 
     # Check if it was successful
     if color_dic is None:
@@ -550,7 +545,7 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
 
 def ggd_test_service(graph, color_list):
     for e in graph.edges:
-        if color_list[e[0] - 1] == color_list[e[1] - 1]:  # Node numbers start with 1, indexing starts with 0
+        if color_list[e[0]] == color_list[e[1]]:
             return False
     return True
 
@@ -689,6 +684,8 @@ for ring_size in range(6,10):
             break
         r = check_reducible(configs[j], colorings, groupings)
     print("Time taken: ", timeit.default_timer() - start)
+
+print("foo")
 
 # timed_reducibility_check(11)
 # timed_reducibility_check(18)
