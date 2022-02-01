@@ -234,6 +234,7 @@ def import_graphs():
     return graphs, configs
 
 
+# Calls is_reducible for every possible non-isomorphic ring_coloring
 def verify_all_ring_colorings(config: Config):
     # Recursive function over all ring nodes: "1" -> "RING_NODES_AMOUNT".
     # Note that the first nodes of the conf are the ring.
@@ -398,7 +399,8 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
 
     # print(f"{len(valid_groupings)} valid groupings found")
     for grouping in valid_groupings:
-        result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
+        # result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
+        result = do_color_switching_2(config, coloring, grouping)
     # From my current understanding, I don't have to be able to color switch and then color all block decompositions
     # If I can find a valid block decomposition for which I can then do color switching which extends to the configuration inside we're done
     # As an example try:
@@ -463,7 +465,7 @@ def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
                 for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
                     color = coloring[node]
                     coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
-                return recurse(config, coloring, grouping, cur_group_index)
+                return recurse(config, coloring, grouping, cur_group_index+1)
     return recurse(config, coloring, grouping, 0)
 
 
@@ -604,9 +606,12 @@ def d_reduce_all(configs: list, multi_thread=True):
 
 graph_arr, config_arr = import_graphs()     # Get configs from file
 
+
 timed_reducibility_check(0)
-timed_reducibility_check(11)
-timed_reducibility_check(18)
-timed_reducibility_check(29)
-timed_reducibility_check(2685)
-timed_reducibility_check(2820)
+timed_reducibility_check(1)
+timed_reducibility_check(2)
+# timed_reducibility_check(11)
+# timed_reducibility_check(18)
+# timed_reducibility_check(29)
+# timed_reducibility_check(2685)
+# timed_reducibility_check(2820)
