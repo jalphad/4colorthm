@@ -234,20 +234,17 @@ def import_graphs():
     return graphs, configs
 
 
-def verify_all_ring_colorings(config: Config):
+def find_all_ring_colorings(size: int):
     # Recursive function over all ring nodes: "1" -> "RING_NODES_AMOUNT".
     # Note that the first nodes of the conf are the ring.
-    def recurse(config, node: int, coloring: dict, ambiguous_colors: list):
+    def recurse(graph: nx.classes.graph.Graph, node: int, coloring: dict, ambiguous_colors: list):
         # BASE KAAS (base case)
         # If node number is > ring_size, the node is not in the ring, but in the inside.
-        if node > config.ring_size:
+        if node >= graph.number_of_nodes():
             # Therefore all nodes in ring are colored: Now check reducibility and return result
-            recurse.coloring_cnt += 1
-            result = check_reducible(config, node, coloring)
-            return [(coloring.copy(), result)]
+            return [coloring.copy()]
         # RECURSIVE KEES
         else:
-            graph = config.ring
             result = []
 
             # Check which colors are not taken by neighbours
@@ -263,7 +260,7 @@ def verify_all_ring_colorings(config: Config):
                     colors_available.remove(c)
                 # Now execute the case of picking one of the colours arbitrarily separately
                 coloring[node] = ambiguous_colors.pop()     # Pick an unused color (now used, so removed from ambig...)
-                result += recurse(config, node + 1, coloring, ambiguous_colors) # Use it and continue recursion
+                result += recurse(graph, node + 1, coloring, ambiguous_colors) # Use it and continue recursion
                 ambiguous_colors.append(coloring[node])     # For the other cases it's not used, push it back on
 
             while len(colors_available) > 0:    # The normal case: go over all possible colors for this node
@@ -273,49 +270,64 @@ def verify_all_ring_colorings(config: Config):
                     coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
                 coloring[node] = colors_available[0]    # Try a color
                 colors_available = colors_available[1::]    # Remove color from our to-do list
-                result += recurse(config, node + 1, coloring, ambiguous_colors)     # Append result tuple to long list
+                result += recurse(graph, node + 1, coloring, ambiguous_colors)     # Append result tuple to long list
             return result
 
     # Set up
+    graph = nx.cycle_graph(size)
     colors_left = [c for c in COLORS]   # ALl colors are not used in the whole coloring. Starting with any is arbitrary
     coloring = {}    # Start with empty coloring
-    recurse.coloring_cnt = 0    # Set the counter for tracking how may ring colorings we actually
 
-    # Call the recursive function
-    result = recurse(config, 1, coloring, colors_left)  #  result temporarily for possible displays
-
-    # Display results
-    if PRINT_FALSE:
-        if False in result[::][1]:
-            print(f"Non-reducible coloring exists: {config.identifier}")
-    if PRINT_CLR_CNT:
-        print(recurse.coloring_cnt)
-    if PRINT_RESULTS:
-        print(result)
-    return result
+    # Call the recursive function and return results when complete
+    return recurse(graph, 0, coloring, colors_left)  #  result temporarily for possible displays
 
 
-def check_reducible(config: Config, node: int, coloring: dict):
-    k, _ = get_special_k(config.graph, COLORS, coloring, node)
-    if k is None or not ggd_test_service(config.graph, k):
-        # If not extending to inside, find a color pairing for which all possible groupings/block decomposition works
-        for pairing in COLOR_PAIRINGS:
-            kempe_sectors = compute_kempe_sectors(coloring, pairing)
-            # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
-            # TODO: Proof?
-            if len(kempe_sectors) < 3:
-                continue
-            # It seems that if there are an uneven amount of Kempe sectors, a valid grouping cannot be done
-            # TODO: Proof
-            elif len(kempe_sectors)%2 == 1:
-                continue
-            elif verify_all_sector_groupings(config, coloring, kempe_sectors, pairing):
-                return True
-            else:
-                continue
-        return False
-    else:   # If we can color the inside straight away, bypass the rest and move on
-        return True
+def check_reducible(config: Config, colorings: list, groupings: dict):
+    remaining_colorings = []
+    remaining_groupings = {}
+    good_colorings = set()
+    for i in range(len(colorings)):
+        k, _ = get_special_k(config.graph, COLORS, colorings[i], config.ring_size)
+        if k is None or not ggd_test_service(config.graph, k):
+            remaining_colorings.append(colorings[i])
+            remaining_groupings[len(remaining_groupings)] = groupings[i]
+        else:
+            isomorphisms = isomorphism_generator(colorings[i].values())
+            for isomorph in isomorphisms:
+                good_colorings.add(isomorph)
+    good_colorings_diff = len(good_colorings)
+    # We expect to find new good colorings each time
+    while good_colorings_diff > 0:
+        start = len(good_colorings)
+        colorings = remaining_colorings
+        groupings = remaining_groupings
+        remaining_colorings = []
+        remaining_groupings = {}
+        for j in range(len(colorings)):
+            reducible = False
+            for pairing in groupings[j]:
+                success = 0
+                for grouping in groupings[j][pairing]:
+                    res = do_color_switching(colorings[j], grouping, pairing, good_colorings)
+                    if res:
+                        success += 1
+                    else:
+                        break
+                if success == len(groupings[j][pairing]):
+                    reducible = True
+                    isomorphisms = isomorphism_generator(colorings[j])
+                    for isomorph in isomorphisms:
+                        good_colorings.add(isomorph)
+                    break
+            if not reducible:
+                remaining_colorings.append(colorings[j])
+                remaining_groupings[j] = groupings[j]
+        good_colorings_diff = len(good_colorings) - start
+
+    results = [(c, True) for c in good_colorings]
+    results.extend([(c, False) for c in remaining_colorings.values()])
+
+    return results
 
 
 def compute_kempe_sectors(coloring: dict, pairing: tuple):
@@ -348,7 +360,7 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
     return sectors
 
 
-def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: list, color_pairing: tuple):
+def find_all_sector_groupings(coloring: dict, kempe_sectors: list, color_pairing: tuple):
     def recurse(grouping: Grouping, sector: int, groupings: list, groupings_size: int):
         empty_groups = grouping.size - len(set(grouping.sectors_to_group.values()))
         sectors_left = len(grouping.sectors) - sector
@@ -389,34 +401,16 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
     grouping = Grouping(kempe_sectors, coloring, color_pairing, groups)
     recurse(grouping, 1, valid_groupings, vgsize)
 
-    # for max_groups in range(3, len(kempe_sectors)):
-    #     grouping = Grouping(kempe_sectors, coloring, color_pairing, max_groups)
-    #     recurse(grouping, 1, valid_groupings)
-
     if len(valid_groupings) == 0:
         raise Exception("There should be valid groupings")
 
-    # print(f"{len(valid_groupings)} valid groupings found")
-    for grouping in valid_groupings:
-        result = do_color_switching(config, coloring, kempe_sectors, grouping, color_pairing)
-    # From my current understanding, I don't have to be able to color switch and then color all block decompositions
-    # If I can find a valid block decomposition for which I can then do color switching which extends to the configuration inside we're done
-    # As an example try:
-    # - the first configuration
-    # - with ring coloring [y g b r g r]
-    # - use color pairing (r y)(b g) since the others won't result in any possible coloring
-        if result:
-            return True
-    return False
-    # So from my current understanding this is not correct (see above)
-    #     if not result:
-    #         return False
-    # return True
+    return valid_groupings
 
 
 # Why are sectors not implicitly passed using the Grouping parameter, but separately? @Joren
 # Try all possible allowed changes in the coloring, until we find end up with an extendable one
-def do_color_switching(config: Config, coloring: dict, kempe_sectors: list, grouping: Grouping, color_pairing: tuple):
+def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple, good_colorings: set):
+    kempe_sectors = grouping.sectors
     grouping_combinations = []
     for i in range(1,grouping.size+1):  # Combinatorics: all possible combinations of allowed color switch actions
         grouping_combinations += list(combinations(grouping.groups, i))
@@ -432,10 +426,8 @@ def do_color_switching(config: Config, coloring: dict, kempe_sectors: list, grou
             for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
                 color = coloring[node]
                 new_coloring[node] = color_pair[(color_pair.index(color) + 1)%2]
-        k, _ = get_special_k(config.graph, COLORS, new_coloring, len(new_coloring))
-        if k is not None:   # If we found a coloring over the whole graph (w/ inside)
-            if ggd_test_service(config.graph, k):   # Verify that this extendable coloring is valid
-                return True # Hurray, you are D-reducible
+        if tuple(new_coloring.values()) in good_colorings:
+            return True # Hurray, you are D-reducible
     return False # No color switch could make our relationship work, we can no longer keep living like this
 
 
@@ -520,16 +512,40 @@ def ggd_test_service(graph, color_list):
     return True
 
 
-def special_k_to_the_ggd(g, i: int):
+def special_k_to_the_ggd(config: Config, i: int):
     print(f"{i + 1}/2822")  # Hardcoded for parallelness
-    print(f"ring_size:{config_arr[i].ring_size}")
+    print(f"ring_size:{config.ring_size}")
     # sys.stdout.flush()
     k, _ = get_special_k(g, COLORS)
-    if k is None or not ggd_test_service(g, k):
+    if k is None or not ggd_test_service(config.graph, k):
         print(f'ALARM: NOT COLORABLE: {i}')
         nx.draw(g)
         plt.title(f"i={i}")
         plt.show()
+
+def isomorphism_generator(coloring: list):
+    color_pairs = ((1, 2), (3, 4), ((1, 2), (3, 4)),
+                   (1, 3), (2, 4), ((1, 3), (2, 4)),
+                   (1, 4), (2, 3), ((1, 4), (2, 3)))
+
+    isomorphisms = []
+    for pair in color_pairs:
+        switched = []
+        if type(pair[0]) == int:
+            for c in coloring:
+                if c in pair:
+                    switched.append(pair[(pair.index(c)+1)%2])
+                else:
+                    switched.append(c)
+            isomorphisms.append(tuple(switched))
+        else:
+            for c in coloring:
+                if c in pair[0]:
+                    switched.append(pair[0][(pair[0].index(c)+1)%2])
+                else:
+                    switched.append(pair[1][(pair[1].index(c)+1)%2])
+            isomorphisms.append(tuple(switched))
+    return isomorphisms
 
 
 # Checks if coloring is isomorphic up to switching colors, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
@@ -559,54 +575,87 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     return list(c1grouped.values()) == list(c2grouped.values())
 
 
-def find_coloring_isomorphism(x):
-    ans = verify_all_ring_colorings(config_arr[x])
-    for a in ans:
-        for b in ans:
-            if a != b:
-                print(f"{ans.index(a)} x {ans.index(b)}: {coloring_is_isomorphism(a[0], b[0])}")
+# def find_coloring_isomorphism(config: Config):
+#     ans = verify_all_ring_colorings(config)
+#     for a in ans:
+#         for b in ans:
+#             if a != b:
+#                 print(f"{ans.index(a)} x {ans.index(b)}: {coloring_is_isomorphism(a[0], b[0])}")
 
 
-def timed_reducibility_check(x):
-    start = timeit.default_timer()
-    verify_all_ring_colorings(config_arr[x])
-    print("Time taken: ", timeit.default_timer() - start)
+# def timed_reducibility_check(config: Config):
+#     start = timeit.default_timer()
+#     verify_all_ring_colorings(config)
+#     print("Time taken: ", timeit.default_timer() - start)
 
 
-def draw_defined_subgraphs(sel):
-    nx.draw(config_arr[sel].inside)
-    plt.figure()
-    nx.draw(config_arr[sel].ring)
-    plt.figure()
-    # Draw entire graph with 4 koloring
-    nx.draw(graph_arr[sel],
-                   node_color=get_special_k(graph_arr[sel], COLORS)[0],
-                   with_labels=list(graph_arr[sel].nodes))
-    plt.show()
+# def draw_defined_subgraphs(config: Config):
+#     nx.draw(config.inside)
+#     plt.figure()
+#     nx.draw(config.ring)
+#     plt.figure()
+#     # Draw entire graph with 4 koloring
+#     nx.draw(config,
+#                    node_color=get_special_k(config.graph, COLORS)[0],
+#                    with_labels=list(config.graph.nodes))
+#     plt.show()
 
 
-def color_graphs_all(multi_thread=True):
-    if multi_thread:
-        Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(graph_arr[i], i) for i in range(len(graph_arr)))  # Color all configs
-    else:
-        for i in range(len(graph_arr)): special_k_to_the_ggd(graph_arr[i], i)     # Single thread version
+# def color_graphs_all(configs, multi_thread=True):
+#     if multi_thread:
+#         Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(configs[i], i) for i in range(len(configs)))  # Color all configs
+#     else:
+#         for i in range(len(configs)): special_k_to_the_ggd(configs[i], i)     # Single thread version
 
 
-def d_reduce_all(configs: list, multi_thread=True):
-    if multi_thread:
-        Parallel(n_jobs=8)(delayed(verify_all_ring_colorings)(cfg) for cfg in configs)  # Color all configs
-    else:
-        for cfg in configs: verify_all_ring_colorings(cfg)    # Single thread version
+# def d_reduce_all(configs: list, multi_thread=True):
+#     if multi_thread:
+#         Parallel(n_jobs=8)(delayed(verify_all_ring_colorings)(cfg) for cfg in configs)  # Color all configs
+#     else:
+#         for cfg in configs: verify_all_ring_colorings(cfg)    # Single thread version
 
 
 # Doing the stuffs
 ########################################################################################################################
 
-graph_arr, config_arr = import_graphs()     # Get configs from file
+graphs, configs = import_graphs()     # Get configs from file
+configs = sorted(configs, key=lambda c: c.ring_size)
 
-timed_reducibility_check(0)
-timed_reducibility_check(11)
-timed_reducibility_check(18)
-timed_reducibility_check(29)
-timed_reducibility_check(2685)
-timed_reducibility_check(2820)
+config_tracker = 0
+for ring_size in range(6,10):
+    start = timeit.default_timer()
+    colorings = find_all_ring_colorings(ring_size)
+    groupings = {}
+    for i in range(len(colorings)):
+        groupings[i] = {}
+        for pairing in COLOR_PAIRINGS:
+            kempe_sectors = compute_kempe_sectors(colorings[i], pairing)
+            # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
+            # TODO: Proof?
+            if len(kempe_sectors) < 3:
+                continue
+            # It seems that if there are an uneven amount of Kempe sectors, a valid grouping cannot be done
+            # TODO: Proof
+            elif len(kempe_sectors)%2 == 1:
+                continue
+            else:
+                groupings[i][pairing] = find_all_sector_groupings(colorings[i], kempe_sectors, pairing)
+    for j in range(config_tracker, len(configs)):
+        if configs[j].ring_size > ring_size:
+            config_tracker = j
+            break
+        r = check_reducible(configs[j], colorings, groupings)
+        print("foo")
+
+
+
+    print("Time taken: ", timeit.default_timer() - start)
+
+print("foo")
+
+# timed_reducibility_check(0)
+# timed_reducibility_check(11)
+# timed_reducibility_check(18)
+# timed_reducibility_check(29)
+# timed_reducibility_check(2685)
+# timed_reducibility_check(2820)
