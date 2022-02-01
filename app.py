@@ -655,39 +655,51 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
 #     else:
 #         for cfg in configs: verify_all_ring_colorings(cfg)    # Single thread version
 
+def d_reduce_all(configs, ring_size_lower, ring_size_upper):
+    results = {}
+    configs = sorted(configs, key=lambda c: c.ring_size)
+
+    if ring_size_lower < 6:
+        ring_size_lower = 6
+    config_tracker = 0
+    for c in range(len(configs)):
+        if configs[c].ring_size == ring_size_lower:
+            config_tracker = c
+            break
+
+    for ring_size in range(ring_size_lower,ring_size_upper+1):
+        colorings = find_all_ring_colorings(ring_size)
+        groupings = {}
+        for i in range(len(colorings)):
+            groupings[i] = {}
+            for pairing in COLOR_PAIRINGS:
+                kempe_sectors = compute_kempe_sectors(colorings[i], pairing)
+                # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
+                # TODO: Proof?
+                if len(kempe_sectors) < 3:
+                    continue
+                # It seems that if there are an uneven amount of Kempe sectors, a valid grouping cannot be done
+                # TODO: Proof
+                elif len(kempe_sectors)%2 == 1:
+                    continue
+                else:
+                    groupings[i][pairing] = find_all_sector_groupings(colorings[i], kempe_sectors, pairing)
+        for j in range(config_tracker, len(configs)):
+            if configs[j].ring_size > ring_size:
+                config_tracker = j
+                break
+            r = check_reducible(configs[j], colorings, groupings)
+            results[configs[j].identifier] = r
+    return results
+
 
 # Doing the stuffs
 ########################################################################################################################
 
 graphs, configs = import_graphs()     # Get configs from file
-configs = sorted(configs, key=lambda c: c.ring_size)
 
-config_tracker = 0
-for ring_size in range(6,10):
-    # start = timeit.default_timer()
-    colorings = find_all_ring_colorings(ring_size)
-    groupings = {}
-    for i in range(len(colorings)):
-        groupings[i] = {}
-        for pairing in COLOR_PAIRINGS:
-            kempe_sectors = compute_kempe_sectors(colorings[i], pairing)
-            # 1 or 2 Kempe sectors will not result in a ring coloring which extends to the interior of the graph
-            # TODO: Proof?
-            if len(kempe_sectors) < 3:
-                continue
-            # It seems that if there are an uneven amount of Kempe sectors, a valid grouping cannot be done
-            # TODO: Proof
-            elif len(kempe_sectors)%2 == 1:
-                continue
-            else:
-                groupings[i][pairing] = find_all_sector_groupings(colorings[i], kempe_sectors, pairing)
-    for j in range(config_tracker, len(configs)):
-        if configs[j].ring_size > ring_size:
-            config_tracker = j
-            break
-        r = check_reducible(configs[j], colorings, groupings)
-    # print("Time taken: ", timeit.default_timer() - start)
-
+results = d_reduce_all(configs, 6, 8)
+print("completed")
 # timed_reducibility_check(11)
 # timed_reducibility_check(18)
 # timed_reducibility_check(29)
