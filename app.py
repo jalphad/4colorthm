@@ -43,7 +43,6 @@ class Config:
 # Can also be instantiated with data that would not constitute a grouping. is_valid determines whether this is actually
 # the case.
 class Grouping:
-
     # Group essentially stored as a list, and the amount of connections to each other group is tracked
     class Group:
         def __init__(self, id: int, grouping_size: int) -> None:
@@ -54,10 +53,8 @@ class Grouping:
                 if i != self.id:
                     self.connection_count[i] = 0
 
-
         def add(self, sector: int):
             self.sectors.append(sector)
-
 
         def update_count(self, group: int, action: str):
             if action == "add":
@@ -71,15 +68,15 @@ class Grouping:
 
     # Grouping is a list of groups, while simultaneously keeping track of the group of every sector for performance
     def __init__(self, kempe_sectors: list, coloring: dict, color_pairing: tuple, size: int) -> None:
-        self.size = size    # Amount of groups
-        self.sectors = kempe_sectors    # In order of ring => i & i+1%ringsize are neighbouring sectors
-        self.coloring = coloring    # Coloring of the ring
+        self.size = size  # Amount of groups
+        self.sectors = kempe_sectors  # In order of ring => i & i+1%ringsize are neighbouring sectors
+        self.coloring = coloring  # Coloring of the ring
         self.color_pairing = color_pairing
         self.groups = []
         for i in range(size):
             self.groups.append(self.Group(i, size))
         self.sectors_to_group = {}  # Dictionary for faster performance
-        self.add_sector_to_group(0, 0)   # "First" sector is added to block 0.
+        self.add_sector_to_group(0, 0)  # "First" sector is added to block 0.
 
     # Returns groups of neighbouring sectors
     # Note:
@@ -87,10 +84,10 @@ class Grouping:
     # Neighbouring sectors are never in the same group
     def get_neighboring_groups(self, sector: int):
         neighbors = []
-        if (sector-1)%len(self.sectors) in self.sectors_to_group.keys():    # If the sector belongs to a group
-            neighbors.append(self.sectors_to_group.get((sector-1)%len(self.sectors)))   # Get the group of neighbour
-        if (sector+1)%len(self.sectors) in self.sectors_to_group.keys():
-            neighbors.append(self.sectors_to_group.get((sector+1)%len(self.sectors)))
+        if (sector - 1) % len(self.sectors) in self.sectors_to_group.keys():  # If the sector belongs to a group
+            neighbors.append(self.sectors_to_group.get((sector - 1) % len(self.sectors)))  # Get the group of neighbour
+        if (sector + 1) % len(self.sectors) in self.sectors_to_group.keys():
+            neighbors.append(self.sectors_to_group.get((sector + 1) % len(self.sectors)))
         return neighbors
 
     # Returns all groups not used by neighbouring sectors
@@ -100,25 +97,25 @@ class Grouping:
 
     # Title says it all
     def add_sector_to_group(self, sector: int, group: int):
-        self.sectors_to_group[sector] = group   # Tie group to the sector
+        self.sectors_to_group[sector] = group  # Tie group to the sector
         self.groups[group].add(sector)  # Add sector to collection of sectors of the group
         # If sector next to it is in a group, then both groups are connected => +1 connection_count
-        for n in self.get_neighboring_groups(sector):   # Groups of neighbouring sectors are now connected so:
-            self.groups[group].update_count(n, "add")   # Added group has one more connection
-            self.groups[n].update_count(group, "add")   # The neighbouring group has one more connection with added group
+        for n in self.get_neighboring_groups(sector):  # Groups of neighbouring sectors are now connected so:
+            self.groups[group].update_count(n, "add")  # Added group has one more connection
+            self.groups[n].update_count(group, "add")  # The neighbouring group has one more connection with added group
 
     # CTRL_Z for add_sector_to_group
     def remove_last_sector_from_group(self):
         sector, group = self.sectors_to_group.popitem()  # Remove "registration of group membership" for sector
         # Idem dito as in add_sector
-        for n in self.get_neighboring_groups(sector):   # For the groups of neighbouring sectors
+        for n in self.get_neighboring_groups(sector):  # For the groups of neighbouring sectors
             self.groups[group].update_count(n, "remove")
             self.groups[n].update_count(group, "remove")
         self.groups[group].sectors.remove(sector)
 
     # Checks the 3 conditions on whether this is actually a grouping / blocks
     def is_valid(self):
-        def is_same_type():     # All colors in group must be member of the same color pair
+        def is_same_type():  # All colors in group must be member of the same color pair
             for group in self.groups:
                 if not len(group.sectors) == 0:
                     nodes = []
@@ -139,28 +136,28 @@ class Grouping:
                 for group in self.groups:
                     if group.id == removed.id:  # We're only  checking the groups we didn't remove
                         continue
-                    if len(group.sectors) <= 1:     # Edge case
+                    if len(group.sectors) <= 1:  # Edge case
                         continue
-                    reached = [group.sectors[0]]    # Start with the "first" sector"
+                    reached = [group.sectors[0]]  # Start with the "first" sector"
                     # List all sectors of the group that we can reach without going over removed sector
-                    for i in range(group.sectors[0]+1, group.sectors[-1]+1):  # In one direction
+                    for i in range(group.sectors[0] + 1, group.sectors[-1] + 1):  # In one direction
                         if i in removed.sectors:
                             break
                         if i in group.sectors:
                             reached.append(i)
                     if len(reached) == len(group.sectors):  # If already succeeded, bypass other direction
                         continue
-                    for i in range(group.sectors[0]-1, group.sectors[1]-len(self.sectors)-1, -1): # In other direction
-                        if i%len(self.sectors) in removed.sectors:
+                    for i in range(group.sectors[0] - 1, group.sectors[1] - len(self.sectors) - 1,
+                                   -1):  # In other direction
+                        if i % len(self.sectors) in removed.sectors:
                             break
-                        if i%len(self.sectors) in group.sectors:
+                        if i % len(self.sectors) in group.sectors:
                             reached.append(i)
                     if len(reached) != len(group.sectors):  # Implies we couldn't reach all sectors => not connected
                         return False
             return True
 
-
-        def is_properly_connected():    # If blocks are connected => they are connected at two points
+        def is_properly_connected():  # If blocks are connected => they are connected at two points
             for group in self.groups:
                 for val in group.connection_count.values():
                     if val == 0 or val == 2:
@@ -263,9 +260,9 @@ def find_all_ring_colorings(size: int):
                 result += recurse(graph, node + 1, coloring, ambiguous_colors) # Use it and continue recursion
                 ambiguous_colors.append(coloring[node])     # For the other cases it's not used, push it back on
 
-            while len(colors_available) > 0:    # The normal case: go over all possible colors for this node
+            while len(colors_available) > 0:  # The normal case: go over all possible colors for this node
 
-                while len(coloring) > node:     # Same coloring structure is used, so we have to undo the effect further
+                while len(coloring) > node:  # Same coloring structure is used, so we have to undo the effect further
                     # down the recursion before we a new possible color
                     coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
                 coloring[node] = colors_available[0]    # Try a color
@@ -335,7 +332,7 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
     previous = -1
     # As byproduct of other code / way rings are in conf file, consecutive nodes in for loop are neighbours in ring
     # TODO: For rigorousness and stability maybe sort this first per key?
-    for k,v in coloring.items():
+    for k, v in coloring.items():
         if v in pairing[0]:
             if previous == 0:
                 sectors[-1].append(k)
@@ -352,7 +349,7 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
             raise Exception("Color not in any pair!")
     # Merge if first and last are actually same
     if ((coloring[sectors[0][0]] in pairing[0] and coloring[sectors[-1][0]] in pairing[0]) or
-        (coloring[sectors[0][0]] in pairing[1] and coloring[sectors[-1][0]] in pairing[1])):
+            (coloring[sectors[0][0]] in pairing[1] and coloring[sectors[-1][0]] in pairing[1])):
         if sectors[0] != sectors[-1]:
             sectors[0] += sectors[-1]
             sectors.pop(-1)
@@ -361,7 +358,7 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
 
 
 def find_all_sector_groupings(coloring: dict, kempe_sectors: list, color_pairing: tuple):
-    def recurse(grouping: Grouping, sector: int, groupings: list, groupings_size: int):
+    def find_all_sector_groupings_recurse(grouping: Grouping, sector: int, groupings: list, groupings_size: int):
         empty_groups = grouping.size - len(set(grouping.sectors_to_group.values()))
         sectors_left = len(grouping.sectors) - sector
         if empty_groups > sectors_left:
@@ -382,12 +379,11 @@ def find_all_sector_groupings(coloring: dict, kempe_sectors: list, color_pairing
                 available.remove(g)
         for group in available:
             grouping.add_sector_to_group(sector, group)
-            recurse(grouping, sector+1, groupings, groupings_size)
+            find_all_sector_groupings_recurse(grouping, sector + 1, groupings, groupings_size)
             if groupings_size == len(groupings):
                 grouping.remove_last_sector_from_group()
                 return
         grouping.remove_last_sector_from_group()
-
 
     valid_groupings = []
 
@@ -396,10 +392,10 @@ def find_all_sector_groupings(coloring: dict, kempe_sectors: list, color_pairing
     # - for n kempe sectors where n is even, will only have valid groupings of size n/2 + 1
     # - the amount of valid groupings found is (n choose (n/2 + 1))/(n/2)
     ks_size = len(kempe_sectors)
-    groups = ks_size//2 + 1
+    groups = ks_size // 2 + 1
     vgsize = math.comb(ks_size, groups) // (ks_size // 2)
     grouping = Grouping(kempe_sectors, coloring, color_pairing, groups)
-    recurse(grouping, 1, valid_groupings, vgsize)
+    find_all_sector_groupings_recurse(grouping, 1, valid_groupings, vgsize)
 
     if len(valid_groupings) == 0:
         raise Exception("There should be valid groupings")
@@ -412,12 +408,12 @@ def find_all_sector_groupings(coloring: dict, kempe_sectors: list, color_pairing
 def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple, good_colorings: set):
     kempe_sectors = grouping.sectors
     grouping_combinations = []
-    for i in range(1,grouping.size+1):  # Combinatorics: all possible combinations of allowed color switch actions
+    for i in range(1, grouping.size + 1):  # Combinatorics: all possible combinations of allowed color switch actions
         grouping_combinations += list(combinations(grouping.groups, i))
-    
-    for combi in grouping_combinations:     # Try every combinations
+
+    for combi in grouping_combinations:  # Try every combinations
         new_coloring = coloring.copy()  # Start over again with the original situation
-        for group in combi: # For all groups that are selected to be switched
+        for group in combi:  # For all groups that are selected to be switched
             nodes = [node for i in group.sectors for node in kempe_sectors[i]]  # List all individual nodes
             if coloring[nodes[0]] in color_pairing[0]:  # Check first node to see colour pairing of the sector/group
                 color_pair = color_pairing[0]
@@ -431,10 +427,51 @@ def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple,
     return False # No color switch could make our relationship work, we can no longer keep living like this
 
 
+def do_color_switching_3(config: Config, coloring: dict, kempe_sectors: list, grouping: Grouping, color_pairing: tuple):
+    grouping_combinations = []
+    for i in range(1, grouping.size + 1):  # Combinatorics: all possible combinations of allowed color switch actions
+        grouping_combinations += list(combinations(grouping.groups, i))
+    result = False
+
+    new_coloring = coloring
+    for combi_index in range(len(grouping_combinations)):  # Try every combinations
+
+        # Change every group not in the last one
+        for group in grouping_combinations[combi_index]:
+            if combi_index == 0 or group not in grouping_combinations[combi_index - 1]:
+                nodes = [node for i in group.sectors for node in kempe_sectors[i]]  # List all individual nodes
+                if coloring[nodes[0]] in color_pairing[0]:  # Check first node to see colour pairing of the sector/group
+                    color_pair = color_pairing[0]
+                else:
+                    color_pair = color_pairing[1]
+                for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
+                    color = coloring[node]
+                    new_coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
+        k, _ = get_special_k(config.graph, COLORS, new_coloring, len(new_coloring))
+        if k is not None:  # If we found a coloring over the whole graph (w/ inside)
+            if ggd_test_service(config.graph, k):  # Verify that this extendable coloring is valid
+                result = True  # Hurray, you are D-reducible
+        # Change back every group not in the next one (or all if this is the last iteration)
+        for group in grouping_combinations[combi_index]:
+            if result == True or combi_index == len(grouping_combinations)-1 or\
+                    group not in grouping_combinations[combi_index + 1]:
+                nodes = [node for i in group.sectors for node in kempe_sectors[i]]  # List all individual nodes
+                if coloring[nodes[0]] in color_pairing[0]:  # Check first node to see colour pairing of the sector/group
+                    color_pair = color_pairing[0]
+                else:
+                    color_pair = color_pairing[1]
+                for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
+                    color = coloring[node]
+                    new_coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
+        if result == True:
+            return result
+    return False  # No color switch could make our relationship work, we can no longer keep living like this
+
+
 # Different version
 def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
-    def recurse(config: Config, coloring: dict, grouping: Grouping, cur_group_index:int):
-        if cur_group_index >= grouping.size:    # Base case
+    def do_color_switching_2_recurse(config: Config, coloring: dict, grouping: Grouping, cur_group_index: int):
+        if cur_group_index >= grouping.size:  # Base case
             k, _ = get_special_k(config.graph, COLORS, coloring, len(coloring))
             if k is not None:  # If we found a coloring over the whole graph (w/ inside)
                 if ggd_test_service(config.graph, k):  # Verify that this extendable coloring is valid
@@ -442,7 +479,7 @@ def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
             else:
                 return False
         else:
-            if recurse(config, coloring, grouping, cur_group_index+1):
+            if do_color_switching_2_recurse(config, coloring, grouping, cur_group_index + 1):
                 return True
             else:
                 cur_group = grouping.groups[cur_group_index]
@@ -455,8 +492,14 @@ def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
                 for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
                     color = coloring[node]
                     coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
-                return recurse(config, coloring, grouping, cur_group_index)
-    return recurse(config, coloring, grouping, 0)
+                result = do_color_switching_2_recurse(config, coloring, grouping, cur_group_index + 1)
+                # Switch back!
+                for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
+                    color = coloring[node]
+                    coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
+                return result
+
+    return do_color_switching_2_recurse(config, coloring, grouping, 0)
 
 
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
@@ -502,7 +545,7 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
 
     # Turn it into list for NX.draw
     color_list = list(color_dic.values())
-    return color_list, color_dic # color_list of the colors corresponding to vertices by order, coloring is dictionary
+    return color_list, color_dic  # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 
 def ggd_test_service(graph, color_list):
@@ -561,12 +604,12 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     # Group the vertices by color
     c1grouped = dict()
     c2grouped = dict()
-    for k,v in sorted(coloring1.items()):
+    for k, v in sorted(coloring1.items()):
         if v in c1grouped:
             c1grouped[v].append(k)
         else:
             c1grouped[v] = [k]
-    for k,v in sorted(coloring2.items()):
+    for k, v in sorted(coloring2.items()):
         if v in c2grouped:
             c2grouped[v].append(k)
         else:
@@ -645,15 +688,8 @@ for ring_size in range(6,10):
             config_tracker = j
             break
         r = check_reducible(configs[j], colorings, groupings)
-        print("foo")
-
-
-
     print("Time taken: ", timeit.default_timer() - start)
 
-print("foo")
-
-# timed_reducibility_check(0)
 # timed_reducibility_check(11)
 # timed_reducibility_check(18)
 # timed_reducibility_check(29)
