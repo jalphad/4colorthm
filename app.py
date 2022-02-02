@@ -542,7 +542,7 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
         return None, None
 
     # Turn it into list for NX.draw
-    color_list = list(color_dic.values())
+    color_list = [color_dic[i] for i in range(len(color_dic))]
     return color_list, color_dic  # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 
@@ -555,12 +555,14 @@ def ggd_test_service(graph, color_list):
 
 def special_k_to_the_ggd(config: Config, i: int):
     print(f"{i + 1}/2822")  # Hardcoded for parallelness
-    print(f"ring_size:{config.ring_size}")
+    print(f"ring_size: {config.ring_size}")
     # sys.stdout.flush()
-    k, _ = get_special_k(g, COLORS)
+    k, _ = get_special_k(config.graph, COLORS)
+    nx.draw(config.graph, node_color=k)
+    plt.show()
     if k is None or not ggd_test_service(config.graph, k):
         print(f'ALARM: NOT COLORABLE: {i}')
-        nx.draw(g)
+        nx.draw(config.graph)
         plt.title(f"i={i}")
         plt.show()
 
@@ -616,12 +618,12 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     return list(c1grouped.values()) == list(c2grouped.values())
 
 
-# def find_coloring_isomorphism(config: Config):
-#     ans = verify_all_ring_colorings(config)
-#     for a in ans:
-#         for b in ans:
-#             if a != b:
-#                 print(f"{ans.index(a)} x {ans.index(b)}: {coloring_is_isomorphism(a[0], b[0])}")
+def check_isomorphism_absence(ringsize: int):
+    ans = find_all_ring_colorings(ringsize)
+    for a in ans:
+        for b in ans:
+            if a != b:
+                print(f"{ans.index(a)} x {ans.index(b)}: {coloring_is_isomorphism(a, b)}")
 
 
 # def timed_reducibility_check(config: Config):
@@ -655,21 +657,28 @@ def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
 #     else:
 #         for cfg in configs: verify_all_ring_colorings(cfg)    # Single thread version
 
-def d_reduce_all(configs, ring_size_lower, ring_size_upper):
-    results = {}
-    configs = sorted(configs, key=lambda c: c.ring_size)
 
+# D-reduce all configurations within the range of specified sizes
+def d_reduce_all(configs, ring_size_lower=6, ring_size_upper=16):
+    results = {}
+    configs = sorted(configs, key=lambda c: c.ring_size)    # Sort by ring size, so we can easily recycle ring groupings
+
+    # Constrain parameter to minimum ring size
     if ring_size_lower < 6:
         ring_size_lower = 6
     config_tracker = 0
+    # Find the first config with the starting ring_size
     for c in range(len(configs)):
         if configs[c].ring_size == ring_size_lower:
             config_tracker = c
             break
 
+    # Now go over the range of ringsizes that we want to check
     for ring_size in range(ring_size_lower,ring_size_upper+1):
         colorings = find_all_ring_colorings(ring_size)
         groupings = {}
+
+        # Generate all colourings, and corresponding kempe sectors and groupings for each color pairing
         for i in range(len(colorings)):
             groupings[i] = {}
             for pairing in COLOR_PAIRINGS:
@@ -684,6 +693,7 @@ def d_reduce_all(configs, ring_size_lower, ring_size_upper):
                     continue
                 else:
                     groupings[i][pairing] = find_all_sector_groupings(colorings[i], kempe_sectors, pairing)
+        # Go over all configs with that ringsize
         for j in range(config_tracker, len(configs)):
             if configs[j].ring_size > ring_size:
                 config_tracker = j
@@ -698,7 +708,7 @@ def d_reduce_all(configs, ring_size_lower, ring_size_upper):
 
 graphs, configs = import_graphs()     # Get configs from file
 
-results = d_reduce_all(configs, 6, 8)
+results = d_reduce_all(configs, 6, 10)
 print("completed")
 # timed_reducibility_check(11)
 # timed_reducibility_check(18)
