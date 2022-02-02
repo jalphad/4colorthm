@@ -282,32 +282,47 @@ def find_all_ring_colorings(size: int):
 def check_reducible(config: Config, colorings: list, groupings: dict):
     results = []
     good_colorings = set()
+    remaining_colorings = []
+    remaining_groupings = {}
+    for i in range(len(colorings)):
+        k, _ = get_special_k(config.graph, COLORS, colorings[i], config.ring_size)
+        if k is not None and ggd_test_service(config.graph, k):
+            isomorphisms = isomorphism_generator(colorings[i].values())
+            results.append((isomorphisms[0], True))
+            for isomorph in isomorphisms:
+                good_colorings.add(isomorph)
+        else:
+            remaining_colorings.append(colorings[i])
+            remaining_groupings[len(remaining_groupings)] = groupings[i]
+
+    colorings = remaining_colorings
+    groupings = remaining_groupings
     diff = 1 # any nr > 0 to start
     # We expect to find new good colorings each time
     while diff > 0:
         remaining_colorings = []
         remaining_groupings = {}
         new_good_colorings = set()
-        for i in range(len(colorings)):
+        for j in range(len(colorings)):
             reducible = False
-            for pairing in groupings[i]:
+            for pairing in groupings[j]:
                 success = 0
-                for grouping in groupings[i][pairing]:
-                    res = do_color_switching(colorings[i], grouping, pairing, good_colorings, config)
+                for grouping in groupings[j][pairing]:
+                    res = do_color_switching(colorings[j], grouping, pairing, good_colorings, config)
                     if res:
                         success += 1
                     else:
                         break
-                if success == len(groupings[i][pairing]):
+                if success == len(groupings[j][pairing]):
                     reducible = True
-                    isomorphisms = isomorphism_generator(colorings[i].values())
+                    isomorphisms = isomorphism_generator(colorings[j].values())
                     results.append((isomorphisms[0], True))
                     for isomorph in isomorphisms:
                         new_good_colorings.add(isomorph)
                     break
             if not reducible:
-                remaining_colorings.append(colorings[i])
-                remaining_groupings[len(remaining_groupings)] = groupings[i]
+                remaining_colorings.append(colorings[j])
+                remaining_groupings[len(remaining_groupings)] = groupings[j]
         colorings = remaining_colorings
         groupings = remaining_groupings
         for c in new_good_colorings:
@@ -567,26 +582,26 @@ def special_k_to_the_ggd(config: Config, i: int):
         plt.show()
 
 def isomorphism_generator(coloring: list):
-    color_pairs = ((1, 2), (3, 4), ((1, 2), (3, 4)),
-                   (1, 3), (2, 4), ((1, 3), (2, 4)),
-                   (1, 4), (2, 3), ((1, 4), (2, 3)))
+    color_permutations = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4),
+                          (1, 2, 3), (1, 2, 4), (1, 3, 2), (1, 3, 4), (1, 4, 2), (1, 4, 3),
+                          (1, 2, 3, 4), ((1, 2), (3, 4)), ((1, 3), (2, 4)), ((1, 4), (2, 3)))
 
     isomorphisms = [tuple(coloring)]
-    for pair in color_pairs:
+    for permutation in color_permutations:
         switched = []
-        if type(pair[0]) == int:
+        if type(permutation[0]) == int:
             for c in coloring:
-                if c in pair:
-                    switched.append(pair[(pair.index(c)+1)%2])
+                if c in permutation:
+                    switched.append(permutation[(permutation.index(c)+1)%len(permutation)])
                 else:
                     switched.append(c)
             isomorphisms.append(tuple(switched))
         else:
             for c in coloring:
-                if c in pair[0]:
-                    switched.append(pair[0][(pair[0].index(c)+1)%2])
+                if c in permutation[0]:
+                    switched.append(permutation[0][(permutation[0].index(c)+1)%2])
                 else:
-                    switched.append(pair[1][(pair[1].index(c)+1)%2])
+                    switched.append(permutation[1][(permutation[1].index(c)+1)%2])
             isomorphisms.append(tuple(switched))
     return isomorphisms
 
