@@ -14,6 +14,7 @@ import math
 PRINT_CLR_CNT = True
 PRINT_RESULTS = False
 PRINT_FALSE = True
+USE_FAST_COLOUR = False
 
 # Global constants
 # 1: red
@@ -514,7 +515,7 @@ def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
 
 
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
-    def get_special_k_recur(graph, node, colors: list, coloring: dict):
+    def get_special_k_recur(graph, node, colors: list, coloring: dict, undo_hist: list):
         # If already colored, return current (successful) coloring
         if node in coloring.keys():
             return coloring
@@ -535,22 +536,31 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
                     avail.remove(coloring[neighneigh])
 
         for node_color in avail:
-            new_coloring = coloring.copy()
+            if USE_FAST_COLOUR:
+                new_coloring = coloring
+                undo_hist.append(node)
+            else:
+                new_coloring = coloring.copy()
+
             new_coloring[node] = node_color
             for neighneigh in neighbours:
                 # Colour the other neighbours
-                new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring)
+                new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring, undo_hist)
                 if new_coloring is None:
+                    if USE_FAST_COLOUR:
+                        last = None
+                        while last != node:
+                            last = undo_hist.pop()
+                            coloring.pop(last)
                     break
                 elif len(graph) == len(new_coloring):
                     break
             if new_coloring is not None:
                 return new_coloring
-
         return None
 
     # color_dic: Dictionary with a colour keyed by each node
-    color_dic = get_special_k_recur(graph, start_index, colors, color_dic)
+    color_dic = get_special_k_recur(graph, start_index, colors, color_dic.copy(), [])
 
     # Check if it was successful
     if color_dic is None:
@@ -641,29 +651,28 @@ def check_isomorphism_absence(ringsize: int):
                 print(f"{ans.index(a)} x {ans.index(b)}: {coloring_is_isomorphism(a, b)}")
 
 
-# def timed_reducibility_check(config: Config):
-#     start = timeit.default_timer()
-#     verify_all_ring_colorings(config)
-#     print("Time taken: ", timeit.default_timer() - start)
+def draw_config_components(config: Config):
+    nx.draw(config.inside)
+    plt.figure()
+    nx.draw(config.ring)
+    plt.figure()
+    # Draw entire graph with 4 koloring
+    nx.draw(config,
+                   node_color=get_special_k(config.graph, COLORS)[0],
+                   with_labels=list(config.graph.nodes))
+    plt.show()
 
 
-# def draw_defined_subgraphs(config: Config):
-#     nx.draw(config.inside)
-#     plt.figure()
-#     nx.draw(config.ring)
-#     plt.figure()
-#     # Draw entire graph with 4 koloring
-#     nx.draw(config,
-#                    node_color=get_special_k(config.graph, COLORS)[0],
-#                    with_labels=list(config.graph.nodes))
-#     plt.show()
+def timed_reducibility_check(configs, min, max):
+    start = timeit.default_timer()
+    d_reduce_all(configs, min, max)
+    print("Time taken: ", timeit.default_timer() - start)
 
-
-# def color_graphs_all(configs, multi_thread=True):
-#     if multi_thread:
-#         Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(configs[i], i) for i in range(len(configs)))  # Color all configs
-#     else:
-#         for i in range(len(configs)): special_k_to_the_ggd(configs[i], i)     # Single thread version
+def color_graphs_all(configs, multi_thread=True):
+    if multi_thread:
+        Parallel(n_jobs=8)(delayed(special_k_to_the_ggd)(configs[i], i) for i in range(len(configs)))  # Color all configs
+    else:
+        for i in range(len(configs)): special_k_to_the_ggd(configs[i], i)     # Single thread version
 
 
 # def d_reduce_all(configs: list, multi_thread=True):
@@ -723,10 +732,13 @@ def d_reduce_all(configs, ring_size_lower=6, ring_size_upper=16):
 
 graphs, configs = import_graphs()     # Get configs from file
 
-results = d_reduce_all(configs, 6, 10)
+results = d_reduce_all(configs, 6, 8)
 print("completed")
-# timed_reducibility_check(11)
-# timed_reducibility_check(18)
-# timed_reducibility_check(29)
-# timed_reducibility_check(2685)
-# timed_reducibility_check(2820)
+
+# USE_FAST_COLOUR = False
+# timed_reducibility_check(configs, 6, 6)
+# timed_reducibility_check(configs, 9, 9)
+# USE_FAST_COLOUR = True
+# timed_reducibility_check(configs, 6, 6)
+# timed_reducibility_check(configs, 9, 9)
+
