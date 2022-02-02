@@ -14,6 +14,8 @@ import math
 PRINT_CLR_CNT = True
 PRINT_RESULTS = False
 PRINT_FALSE = True
+USE_SORT_IN_COLORING = False
+
 
 # Global constants
 # 1: red
@@ -241,8 +243,8 @@ def verify_all_ring_colorings(config: Config):
         if node > config.ring_size:
             # Therefore all nodes in ring are colored: Now check reducibility and return result
             recurse.coloring_cnt += 1
-            result = check_reducible(config, node, coloring)
-            return [(coloring.copy(), result)]
+            #result = check_reducible(config, node, coloring)
+            return [coloring.copy()]
         # RECURSIVE KEES
         else:
             graph = config.ring
@@ -261,6 +263,14 @@ def verify_all_ring_colorings(config: Config):
                     colors_available.remove(c)
                 # Now execute the case of picking one of the colours arbitrarily separately
                 coloring[node] = ambiguous_colors.pop()  # Pick an unused color (now used, so removed from ambig...)
+
+                plt.figure()
+                plt.title(f"Coloring {recurse.i}")
+                nx.draw(config.graph, pos=pos, node_color=partial_coloring_to_list(config.graph, coloring))
+                plt.savefig(f"animation\\ringcoloringstep_{recurse.i}")
+                recurse.i += 1
+                plt.close()
+
                 result += recurse(config, node + 1, coloring, ambiguous_colors)  # Use it and continue recursion
                 ambiguous_colors.append(coloring[node])  # For the other cases it's not used, push it back on
 
@@ -271,6 +281,14 @@ def verify_all_ring_colorings(config: Config):
                     coloring.popitem()  # CTRL Z on the coloring, let's try the other possibility
                 coloring[node] = colors_available[0]  # Try a color
                 colors_available = colors_available[1::]  # Remove color from our to-do list
+
+                plt.figure()
+                plt.title(f"Coloring {recurse.i}")
+                nx.draw(config.graph, pos=pos, node_color=partial_coloring_to_list(config.graph, coloring))
+                plt.savefig(f"animation\\ringcoloringstepslow_{recurse.i}")
+                recurse.i += 1
+
+                plt.close()
                 result += recurse(config, node + 1, coloring, ambiguous_colors)  # Append result tuple to long list
             return result
 
@@ -279,20 +297,28 @@ def verify_all_ring_colorings(config: Config):
     coloring = {}  # Start with empty coloring
     recurse.coloring_cnt = 0  # Set the counter for tracking how may ring colorings we actually
 
-    # Call the recursive function
-    result = recurse(config, 1, coloring, colors_left)  # result temporarily for possible displays
+    pos = nx.spring_layout(config.graph)
 
-    # Display results
-    if PRINT_FALSE:
-        if False in result[::][1]:
-            print(f"Non-reducible coloring exists: {config.identifier}")
+
+    # Call the recursive function
+    recurse.i = 0
+    result = recurse(config, 1, coloring, colors_left)  # result temporarily for possible displays
+    # i = 0
+    # for c in result:
+    #     plt.figure()
+    #     plt.title(f"Coloring {i}")
+    #     nx.draw(config.graph, pos=pos, node_color=partial_coloring_to_list(config.graph, c))
+    #     plt.savefig(f"animation\\ringcoloring_{i}")
+    #     i +=1
+    #     plt.close()
+
     if PRINT_CLR_CNT:
         print(recurse.coloring_cnt)
     if PRINT_RESULTS:
         print(result)
     return result
 
-
+# Either colorable or try to find color pairing for which we can find a extendable coloring for each decomposition
 def check_reducible(config: Config, node: int, coloring: dict):
     k, _ = get_special_k(config.graph, COLORS, coloring, node)
     if k is None or not ggd_test_service(config.graph, k):
@@ -315,7 +341,7 @@ def check_reducible(config: Config, node: int, coloring: dict):
     else:  # If we can color the inside straight away, bypass the rest and move on
         return True
 
-
+# Returns list of sectors given the pairing and a ring coloring
 def compute_kempe_sectors(coloring: dict, pairing: tuple):
     sectors = []
     previous = -1
@@ -345,7 +371,7 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
 
     return sectors
 
-
+# Find all groupings, for each find a combination of color changes that results in an extendable colouring
 def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: list, color_pairing: tuple):
     def verify_all_sector_groupings_recurse(grouping: Grouping, sector: int, groupings: list, groupings_size: int):
         empty_groups = grouping.size - len(set(grouping.sectors_to_group.values()))
@@ -418,7 +444,7 @@ def verify_all_sector_groupings(config: Config, coloring: dict, kempe_sectors: l
 
 
 # Why are sectors not implicitly passed using the Grouping parameter, but separately? @Joren
-# Try all possible allowed changes in the coloring, until we find end up with an extendable one
+# Try all possible allowed changes in the coloring in a group decomposition, until we find end up with an extendable one
 def do_color_switching(config: Config, coloring: dict, kempe_sectors: list, grouping: Grouping, color_pairing: tuple):
     grouping_combinations = []
     for i in range(1, grouping.size + 1):  # Combinatorics: all possible combinations of allowed color switch actions
@@ -563,6 +589,83 @@ def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
     return color_list, color_dic  # color_list of the colors corresponding to vertices by order, coloring is dictionary
 
 
+def partial_coloring_to_list(graph, coloring: dict):
+    res = []
+    colors = ("black","blue","red","green","yellow")
+    for n in graph.nodes:
+        if n in coloring.keys():
+            if isinstance(coloring[n], int):
+                res.append(colors[coloring[n]])
+            else:
+                res.append(coloring[n])
+        else:
+            res.append("black")
+    return res
+
+
+def get_special_k_anim(graph, colors, color_dic: dict = {}, start_index=0, pos=None, filename=""):
+    def get_special_k_recur(graph, node, colors: list, coloring: dict, filename=""):
+        # If already colored, return current (successful) coloring
+        if node in coloring.keys():
+            return coloring
+
+        if not USE_SORT_IN_COLORING:
+            neighbours = list(graph.neighbors(node))
+        else:
+            neighbours_unsort = list(graph.neighbors(node))
+            neighbour_deg = list(graph.degree)
+            neighbours = [i for _, i in sorted(zip(neighbour_deg, neighbours_unsort), reverse=True)]
+        avail = list(colors)
+
+        # Remove colors already taken by neighbours
+        for neighneigh in neighbours:
+            if neighneigh in coloring.keys():
+                if coloring[neighneigh] in avail:
+                    avail.remove(coloring[neighneigh])
+
+        for node_color in avail:
+            new_coloring = coloring.copy()
+            new_coloring[node] = node_color
+
+            get_special_k_recur.frame_no += 1
+            fig = plt.figure()
+            plt.title(f"step {get_special_k_recur.frame_no}")
+            nx.draw(graph, node_color=partial_coloring_to_list(graph, new_coloring), pos=get_special_k_recur.pos_dic)
+            plt.savefig(f"animation\\{filename}_{get_special_k_recur.frame_no}")
+            plt.close(fig)
+
+            for neighneigh in neighbours:
+                # Colour the other neighbours
+                new_coloring = get_special_k_recur(graph, neighneigh, colors, new_coloring, filename)
+                if new_coloring is None:
+                    break
+            if new_coloring is not None:
+                return new_coloring
+
+        return None
+
+    get_special_k_recur.frame_no = 0
+    if pos is not None:
+        get_special_k_recur.pos_dic = pos
+    else:
+        get_special_k_recur.pos_dic = nx.spring_layout(graph)
+    fig = plt.figure()
+    plt.title(f"step {get_special_k_recur.frame_no}")
+    nx.draw(graph, node_color=partial_coloring_to_list(graph, {}), pos=get_special_k_recur.pos_dic)
+    plt.savefig(f"animation\\{filename}_{get_special_k_recur.frame_no}")
+
+    # color_dic: Dictionary with a colour keyed by each node
+    color_dic = get_special_k_recur(graph, list(graph.nodes)[start_index], colors, color_dic, filename=filename)
+
+    # Check if it was successful
+    if color_dic is None:
+        return None, None
+
+    # Turn it into list for NX.draw
+    color_list = list(color_dic.values())
+    return color_list, color_dic  # color_list of the colors corresponding to vertices by order, coloring is dictionary
+
+
 def ggd_test_service(graph, color_list):
     for e in graph.edges:
         if color_list[e[0] - 1] == color_list[e[1] - 1]:  # Node numbers start with 1, indexing starts with 0
@@ -654,6 +757,41 @@ def d_reduce_all(configs: list, multi_thread=True):
 ########################################################################################################################
 
 graph_arr, config_arr = import_graphs()  # Get configs from file
+
+#
+# pos = nx.spring_layout(graph_arr[2])
+# USE_SORT_IN_COLORING = False
+# get_special_k_anim(graph_arr[2], ["blue", "red", "green", "yellow"], pos=pos, filename="slow")
+# USE_SORT_IN_COLORING = True
+# get_special_k_anim(graph_arr[2], ["blue", "red", "green", "yellow"], pos=pos, filename="fast")
+
+# verify_all_ring_colorings(config_arr[0])
+
+color_list_max = ["blue", "red", "green", "yellow",
+                  "blue", "red", "green", "yellow",
+                  "blue", "red", "green", "yellow",
+                  "blue", "red", "green", "yellow",
+                  "black", "black", "black", "black",
+                  "black", "black", "black", "black",
+                  "black", "black", "black", "black",
+                  "black"]
+
+pos = nx.circular_layout(config_arr[1316].ring)
+pos1 = nx.kamada_kawai_layout(config_arr[1316].inside)
+for k in pos.keys():
+    pos1[k] = pos[k]
+
+#pos1 = nx.kamada_kawai_layout(graph_arr[1316], pos=pos)
+pos2 = nx.kamada_kawai_layout(graph_arr[2820])
+
+plt.figure()
+nx.draw(graph_arr[1316], pos=pos1, node_color=color_list_max, with_labels=list(graph_arr[1316].nodes))
+plt.show()
+plt.figure()
+nx.draw(graph_arr[2820], pos=pos2, node_color=color_list_max, with_labels=list(graph_arr[1316].nodes))
+plt.show()
+
+
 
 COLOR_SWITCHER = do_color_switching_3
 
