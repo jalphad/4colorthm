@@ -15,6 +15,7 @@ PRINT_CLR_CNT = True
 PRINT_RESULTS = False
 PRINT_FALSE = True
 USE_FAST_COLOUR = False
+USE_FAST_SWITCH = False
 
 # Global constants
 # 1: red
@@ -309,7 +310,10 @@ def check_reducible(config: Config, colorings: list, groupings: dict):
             for pairing in groupings[j]:
                 success = 0
                 for grouping in groupings[j][pairing]:
-                    res = do_color_switching(colorings[j], grouping, pairing, good_colorings, config)
+                    if USE_FAST_SWITCH:
+                        res = do_color_switching_nocopy(colorings[j], grouping, good_colorings, config)
+                    else:
+                        res = do_color_switching(colorings[j], grouping, good_colorings, config)
                     if res:
                         success += 1
                     else:
@@ -339,8 +343,7 @@ def compute_kempe_sectors(coloring: dict, pairing: tuple):
     sectors = []
     previous = -1
     # As byproduct of other code / way rings are in conf file, consecutive nodes in for loop are neighbours in ring
-    # TODO: For rigorousness and stability maybe sort this first per key?
-    for k, v in coloring.items():
+    for k, v in sorted(coloring.items(), key=lambda t: t[0]):
         if v in pairing[0]:
             if previous == 0:
                 sectors[-1].append(k)
@@ -411,10 +414,10 @@ def find_all_sector_groupings(coloring: dict, kempe_sectors: list, color_pairing
     return valid_groupings
 
 
-# Why are sectors not implicitly passed using the Grouping parameter, but separately? @Joren
 # Try all possible allowed changes in the coloring, until we find end up with an extendable one
-def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple, good_colorings: set, config: Config):
+def do_color_switching(coloring: dict, grouping: Grouping, good_colorings: set, config: Config):
     kempe_sectors = grouping.sectors
+    color_pairing = grouping.color_pairing
     grouping_combinations = []
     for i in range(1, grouping.size + 1):  # Combinatorics: all possible combinations of allowed color switch actions
         grouping_combinations += list(combinations(grouping.groups, i))
@@ -430,25 +433,30 @@ def do_color_switching(coloring: dict, grouping: Grouping, color_pairing: tuple,
             for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
                 color = coloring[node]
                 new_coloring[node] = color_pair[(color_pair.index(color) + 1)%2]
+
         if len(good_colorings) == 0:
             k, _ = get_special_k(config.graph, COLORS, new_coloring, config.ring_size)
             if k is not None and ggd_test_service(config.graph, k):
                 return True # Hurray, you are D-reducible
         elif tuple(new_coloring.values()) in good_colorings:
             return True # Hurray, you are D-reducible
+
     return False # No color switch could make our relationship work, we can no longer keep living like this
 
 
-def do_color_switching_3(config: Config, coloring: dict, kempe_sectors: list, grouping: Grouping, color_pairing: tuple):
+# Try all possible allowed changes in the coloring, until we find end up with an extendable one
+def do_color_switching_nocopy(coloring: dict, grouping: Grouping, good_colorings: set, config: Config):
+    kempe_sectors = grouping.sectors
+    color_pairing = grouping.color_pairing
     grouping_combinations = []
+
     for i in range(1, grouping.size + 1):  # Combinatorics: all possible combinations of allowed color switch actions
         grouping_combinations += list(combinations(grouping.groups, i))
-    result = False
 
     new_coloring = coloring
+    result = False
     for combi_index in range(len(grouping_combinations)):  # Try every combinations
-
-        # Change every group not in the last one
+        # Change every group not in the last one so that we end up with the current combination of  colour switches
         for group in grouping_combinations[combi_index]:
             if combi_index == 0 or group not in grouping_combinations[combi_index - 1]:
                 nodes = [node for i in group.sectors for node in kempe_sectors[i]]  # List all individual nodes
@@ -459,13 +467,17 @@ def do_color_switching_3(config: Config, coloring: dict, kempe_sectors: list, gr
                 for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
                     color = coloring[node]
                     new_coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
-        k, _ = get_special_k(config.graph, COLORS, new_coloring, len(new_coloring))
-        if k is not None:  # If we found a coloring over the whole graph (w/ inside)
-            if ggd_test_service(config.graph, k):  # Verify that this extendable coloring is valid
+
+        if len(good_colorings) == 0:
+            k, _ = get_special_k(config.graph, COLORS, new_coloring, config.ring_size)
+            if k is not None and ggd_test_service(config.graph, k):
                 result = True  # Hurray, you are D-reducible
+        elif tuple(new_coloring.values()) in good_colorings:
+            result = True  # Hurray, you are D-reducible
+
         # Change back every group not in the next one (or all if this is the last iteration)
         for group in grouping_combinations[combi_index]:
-            if result == True or combi_index == len(grouping_combinations)-1 or\
+            if result == True or combi_index == len(grouping_combinations) - 1 or \
                     group not in grouping_combinations[combi_index + 1]:
                 nodes = [node for i in group.sectors for node in kempe_sectors[i]]  # List all individual nodes
                 if coloring[nodes[0]] in color_pairing[0]:  # Check first node to see colour pairing of the sector/group
@@ -476,46 +488,52 @@ def do_color_switching_3(config: Config, coloring: dict, kempe_sectors: list, gr
                     color = coloring[node]
                     new_coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
         if result == True:
-            return result
-    return False  # No color switch could make our relationship work, we can no longer keep living like this
+            break
+    return result  # No color switch could make our relationship work, we can no longer keep living like this
 
-
-# Different version
-def do_color_switching_2(config: Config, coloring: dict, grouping: Grouping):
-    def do_color_switching_2_recurse(config: Config, coloring: dict, grouping: Grouping, cur_group_index: int):
-        if cur_group_index >= grouping.size:  # Base case
-            k, _ = get_special_k(config.graph, COLORS, coloring, len(coloring))
-            if k is not None:  # If we found a coloring over the whole graph (w/ inside)
-                if ggd_test_service(config.graph, k):  # Verify that this extendable coloring is valid
-                    return True  # Hurray, you are D-reducible
-            else:
-                return False
-        else:
-            if do_color_switching_2_recurse(config, coloring, grouping, cur_group_index + 1):
-                return True
-            else:
-                cur_group = grouping.groups[cur_group_index]
-                nodes = [node for i in cur_group.sectors for node in grouping.sectors[i]]  # List all individual nodes
-                if coloring[nodes[0]] in grouping.color_pairing[
-                    0]:  # Check first node to see colour pairing of the sector/group
-                    color_pair = grouping.color_pairing[0]
-                else:
-                    color_pair = grouping.color_pairing[1]
-                for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
-                    color = coloring[node]
-                    coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
-                result = do_color_switching_2_recurse(config, coloring, grouping, cur_group_index + 1)
-                # Switch back!
-                for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
-                    color = coloring[node]
-                    coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
-                return result
-
-    return do_color_switching_2_recurse(config, coloring, grouping, 0)
+# def do_color_switching_3(config: Config, coloring: dict, kempe_sectors: list, grouping: Grouping, color_pairing: tuple):
+#     grouping_combinations = []
+#     for i in range(1, grouping.size + 1):  # Combinatorics: all possible combinations of allowed color switch actions
+#         grouping_combinations += list(combinations(grouping.groups, i))
+#     result = False
+#
+#     new_coloring = coloring
+#     for combi_index in range(len(grouping_combinations)):  # Try every combinations
+#
+#         # Change every group not in the last one
+#         for group in grouping_combinations[combi_index]:
+#             if combi_index == 0 or group not in grouping_combinations[combi_index - 1]:
+#                 nodes = [node for i in group.sectors for node in kempe_sectors[i]]  # List all individual nodes
+#                 if coloring[nodes[0]] in color_pairing[0]:  # Check first node to see colour pairing of the sector/group
+#                     color_pair = color_pairing[0]
+#                 else:
+#                     color_pair = color_pairing[1]
+#                 for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
+#                     color = coloring[node]
+#                     new_coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
+#         k, _ = get_special_k(config.graph, COLORS, new_coloring, len(new_coloring))
+#         if k is not None:  # If we found a coloring over the whole graph (w/ inside)
+#             if ggd_test_service(config.graph, k):  # Verify that this extendable coloring is valid
+#                 result = True  # Hurray, you are D-reducible
+#         # Change back every group not in the next one (or all if this is the last iteration)
+#         for group in grouping_combinations[combi_index]:
+#             if result == True or combi_index == len(grouping_combinations)-1 or\
+#                     group not in grouping_combinations[combi_index + 1]:
+#                 nodes = [node for i in group.sectors for node in kempe_sectors[i]]  # List all individual nodes
+#                 if coloring[nodes[0]] in color_pairing[0]:  # Check first node to see colour pairing of the sector/group
+#                     color_pair = color_pairing[0]
+#                 else:
+#                     color_pair = color_pairing[1]
+#                 for node in nodes:  # Now use that color pairing to do switcheroooo for all nodes in group
+#                     color = coloring[node]
+#                     new_coloring[node] = color_pair[(color_pair.index(color) + 1) % 2]
+#         if result == True:
+#             return result
+#     return False  # No color switch could make our relationship work, we can no longer keep living like this
 
 
 def get_special_k(graph, colors, color_dic: dict = {}, start_index=0):
-    def get_special_k_recur(graph, node, colors: list, coloring: dict, undo_hist: list):
+    def get_special_k_recur(graph, node, colors: list, coloring: dict, undo_hist: list): # todo rewrite list as int
         # If already colored, return current (successful) coloring
         if node in coloring.keys():
             return coloring
@@ -591,6 +609,7 @@ def special_k_to_the_ggd(config: Config, i: int):
         plt.title(f"i={i}")
         plt.show()
 
+
 def isomorphism_generator(coloring: list):
     color_permutations = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4),
                           (1, 2, 3), (1, 2, 4), (1, 3, 2), (1, 3, 4), (1, 4, 2), (1, 4, 3),
@@ -616,7 +635,8 @@ def isomorphism_generator(coloring: list):
     return isomorphisms
 
 
-# Checks if coloring is isomorphic up to switching colors, GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
+# Checks if coloring is isomorphic up to switching colors,
+# GIVEN that they color the SAME graph (not an isomorphic graph necessarily)
 def coloring_is_isomorphism(coloring1: dict, coloring2: dict):
     # Check same length
     if len(coloring1) != len(coloring2):
@@ -675,13 +695,6 @@ def color_graphs_all(configs, multi_thread=True):
         for i in range(len(configs)): special_k_to_the_ggd(configs[i], i)     # Single thread version
 
 
-# def d_reduce_all(configs: list, multi_thread=True):
-#     if multi_thread:
-#         Parallel(n_jobs=8)(delayed(verify_all_ring_colorings)(cfg) for cfg in configs)  # Color all configs
-#     else:
-#         for cfg in configs: verify_all_ring_colorings(cfg)    # Single thread version
-
-
 # D-reduce all configurations within the range of specified sizes
 def d_reduce_all(configs, ring_size_lower=6, ring_size_upper=16):
     results = {}
@@ -732,13 +745,13 @@ def d_reduce_all(configs, ring_size_lower=6, ring_size_upper=16):
 
 graphs, configs = import_graphs()     # Get configs from file
 
-results = d_reduce_all(configs, 6, 8)
+results = d_reduce_all(configs, 9, 9)
 print("completed")
 
-# USE_FAST_COLOUR = False
+USE_FAST_SWITCH = False
+#timed_reducibility_check(configs, 6, 6)
+timed_reducibility_check(configs, 10, 10)
+USE_FAST_SWITCH = True
 # timed_reducibility_check(configs, 6, 6)
-# timed_reducibility_check(configs, 9, 9)
-# USE_FAST_COLOUR = True
-# timed_reducibility_check(configs, 6, 6)
-# timed_reducibility_check(configs, 9, 9)
+timed_reducibility_check(configs, 10, 10)
 
